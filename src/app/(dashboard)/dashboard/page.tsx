@@ -184,9 +184,18 @@ export default function DashboardPage() {
         .finally(() => { if (initial && !cancelled) setLoading(false); });
     }
 
+    function onVisible() {
+      if (!cancelled && document.visibilityState === "visible") load(false);
+    }
+
     load(true);
     const interval = setInterval(() => load(false), 10000);
-    return () => { cancelled = true; clearInterval(interval); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   const canCreate = me ? isAdmin(me.role) : false;
