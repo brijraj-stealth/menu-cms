@@ -3,21 +3,16 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Users, KeyRound, ShieldCheck, Ban, ArrowRight, Trash2 } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
-} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 
 interface User {
   id: string;
@@ -76,25 +71,10 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Invite dialog
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ name: "", email: "", password: "", role: "STAFF" });
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
-
-  // Edit sheet
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", email: "", role: "STAFF" });
-  const [editSubmitting, setEditSubmitting] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
-
-  // Confirm dialogs
-  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [toggleTarget, setToggleTarget] = useState<User | null>(null);
-  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     if (status === "authenticated" && session.user.role === "STAFF") {
@@ -120,19 +100,11 @@ export default function UsersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, session]);
 
-  // Sync edit form when a user is selected
-  useEffect(() => {
-    if (selectedUser) {
-      setEditForm({ name: selectedUser.name ?? "", email: selectedUser.email, role: selectedUser.role });
-      setEditError(null);
-      setNewPassword("");
-    }
-  }, [selectedUser]);
-
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     setInviteSubmitting(true);
     setInviteError(null);
+    const toastId = toast.loading("Creating user…");
     try {
       const res = await fetch("/api/users", {
         method: "POST",
@@ -140,93 +112,17 @@ export default function UsersPage() {
         body: JSON.stringify(inviteForm),
       });
       const json = await res.json();
-      if (!res.ok) { setInviteError(json.error ?? "Failed to create user"); return; }
+      if (!res.ok) {
+        setInviteError(json.error ?? "Failed to create user");
+        toast.dismiss(toastId);
+        return;
+      }
       setUsers((prev) => [{ ...json.data, _count: { propertyAccess: 0, venueAccess: 0, menuAccess: 0 } }, ...prev]);
       setInviteOpen(false);
       setInviteForm({ name: "", email: "", password: "", role: "STAFF" });
-      toast.success(`${json.data.name || json.data.email} added`);
+      toast.success(`${json.data.name || json.data.email} added`, { id: toastId });
     } finally {
       setInviteSubmitting(false);
-    }
-  }
-
-  async function handleEditSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedUser) return;
-    setEditSubmitting(true);
-    setEditError(null);
-    try {
-      const res = await fetch(`/api/users/${selectedUser.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
-      });
-      const json = await res.json();
-      if (!res.ok) { setEditError(json.error ?? "Failed to save changes"); return; }
-      setUsers((prev) => prev.map((u) => u.id === selectedUser.id ? { ...u, ...json.data } : u));
-      setSelectedUser((prev) => prev ? { ...prev, ...json.data } : null);
-      toast.success("Changes saved");
-    } finally {
-      setEditSubmitting(false);
-    }
-  }
-
-  async function handlePasswordChange(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedUser || newPassword.length < 8) return;
-    setPasswordSubmitting(true);
-    try {
-      const res = await fetch(`/api/users/${selectedUser.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: newPassword }),
-      });
-      if (!res.ok) { toast.error("Failed to update password"); return; }
-      setNewPassword("");
-      toast.success("Password updated");
-    } finally {
-      setPasswordSubmitting(false);
-    }
-  }
-
-  async function handleToggleActive() {
-    if (!toggleTarget) return;
-    setToggling(true);
-    try {
-      const res = await fetch(`/api/users/${toggleTarget.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !toggleTarget.isActive }),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        setUsers((prev) => prev.map((u) => u.id === toggleTarget.id ? { ...u, isActive: json.data.isActive } : u));
-        setSelectedUser((prev) => prev?.id === toggleTarget.id ? { ...prev, isActive: json.data.isActive } : prev);
-        toast.success(json.data.isActive ? "Account activated" : "Account deactivated");
-      } else {
-        toast.error("Failed to update account status");
-      }
-    } finally {
-      setToggling(false);
-      setToggleTarget(null);
-    }
-  }
-
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/users/${deleteTarget.id}`, { method: "DELETE" });
-      if (res.ok) {
-        setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
-        if (selectedUser?.id === deleteTarget.id) setSelectedUser(null);
-        toast.success(`${deleteTarget.name ?? deleteTarget.email} removed`);
-      } else {
-        toast.error("Failed to delete user");
-      }
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
     }
   }
 
@@ -281,9 +177,9 @@ export default function UsersPage() {
                 <Select value={inviteForm.role} onValueChange={(val) => val && setInviteForm((f) => ({ ...f, role: val }))}>
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="STAFF">Staff — Limited access, needs explicit grants</SelectItem>
-                    <SelectItem value="ADMIN">Admin — Can manage users and all content</SelectItem>
-                    <SelectItem value="SUPER_ADMIN">Super Admin — Full platform access</SelectItem>
+                    <SelectItem value="STAFF">Staff — needs explicit access grants</SelectItem>
+                    <SelectItem value="ADMIN">Admin — manages users and all content</SelectItem>
+                    <SelectItem value="SUPER_ADMIN">Super Admin — full platform access</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -324,7 +220,7 @@ export default function UsersPage() {
             return (
               <div
                 key={u.id}
-                onClick={() => setSelectedUser(u)}
+                onClick={() => router.push(`/dashboard/users/${u.id}`)}
                 className="group cursor-pointer rounded-2xl border border-neutral-200 bg-white p-5 transition-all hover:border-neutral-400 hover:shadow-md"
               >
                 <div className="flex items-start gap-4">
@@ -332,9 +228,7 @@ export default function UsersPage() {
                     {initial}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-neutral-900">{u.name ?? u.email}</h3>
-                    </div>
+                    <h3 className="font-semibold text-neutral-900">{u.name ?? u.email}</h3>
                     {u.name && <p className="mt-0.5 text-sm text-neutral-500 truncate">{u.email}</p>}
                   </div>
                 </div>
@@ -347,7 +241,7 @@ export default function UsersPage() {
                       {u.isActive ? "Active" : "Inactive"}
                     </span>
                   </div>
-                  <span className="text-xs text-neutral-400 group-hover:text-neutral-600 transition-colors">
+                  <span className="text-xs text-neutral-400 transition-colors group-hover:text-neutral-600">
                     {u._count.propertyAccess + u._count.venueAccess + u._count.menuAccess} access
                   </span>
                 </div>
@@ -356,167 +250,6 @@ export default function UsersPage() {
           })}
         </div>
       )}
-
-      {/* Edit sheet */}
-      <Sheet open={!!selectedUser} onOpenChange={(v) => { if (!v) setSelectedUser(null); }}>
-        <SheetContent side="right" className="flex flex-col overflow-y-auto p-0 sm:max-w-md">
-          {selectedUser && (() => {
-            const seed = selectedUser.name ?? selectedUser.email;
-            const color = avatarColor(seed);
-            const initial = seed[0]?.toUpperCase() ?? "U";
-            return (
-              <>
-                <SheetHeader className="border-b border-neutral-200 px-6 py-5">
-                  <div className="flex items-center gap-4 pr-8">
-                    <div className={`flex size-14 shrink-0 items-center justify-center rounded-full ${color} text-2xl font-bold text-white select-none`}>
-                      {initial}
-                    </div>
-                    <div className="min-w-0">
-                      <SheetTitle className="truncate text-lg">{selectedUser.name ?? selectedUser.email}</SheetTitle>
-                      {selectedUser.name && <p className="mt-0.5 truncate text-sm text-neutral-500">{selectedUser.email}</p>}
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${ROLE_STYLES[selectedUser.role] ?? ""}`}>
-                          {ROLE_LABELS[selectedUser.role] ?? selectedUser.role}
-                        </span>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${selectedUser.isActive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
-                          {selectedUser.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </SheetHeader>
-
-                <div className="flex flex-col gap-5 overflow-y-auto px-6 py-5">
-                  {/* Account status toggle */}
-                  <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3.5">
-                    <div>
-                      <p className="font-medium text-neutral-900">Account Access</p>
-                      <p className="mt-0.5 text-xs text-neutral-500">
-                        {selectedUser.isActive
-                          ? "Active — this user can log in"
-                          : "Inactive — login is blocked"}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setToggleTarget(selectedUser)}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
-                        selectedUser.isActive
-                          ? "bg-red-50 text-red-600 hover:bg-red-100"
-                          : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                      }`}
-                    >
-                      {selectedUser.isActive ? (
-                        <><Ban className="size-3.5" /> Deactivate</>
-                      ) : (
-                        <><ShieldCheck className="size-3.5" /> Activate</>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Edit form */}
-                  <form onSubmit={handleEditSave} className="flex flex-col gap-4">
-                    <p className="text-sm font-semibold text-neutral-900">Profile Details</p>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-neutral-700">Full name</label>
-                      <Input placeholder="Full name" value={editForm.name}
-                        onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-neutral-700">Email</label>
-                      <Input type="email" value={editForm.email}
-                        onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-neutral-700">Role</label>
-                      <Select value={editForm.role} onValueChange={(val) => val && setEditForm((f) => ({ ...f, role: val }))}>
-                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="STAFF">Staff</SelectItem>
-                          <SelectItem value="ADMIN">Admin</SelectItem>
-                          <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {editError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{editError}</p>}
-                    <Button type="submit" disabled={editSubmitting} className="bg-neutral-900 text-white hover:bg-neutral-700">
-                      {editSubmitting ? "Saving…" : "Save Changes"}
-                    </Button>
-                  </form>
-
-                  {/* Password reset */}
-                  <form onSubmit={handlePasswordChange} className="flex flex-col gap-3 rounded-xl border border-neutral-200 p-4">
-                    <div className="flex items-center gap-2">
-                      <KeyRound className="size-4 text-neutral-400" />
-                      <p className="text-sm font-semibold text-neutral-900">Reset Password</p>
-                    </div>
-                    <p className="text-xs text-neutral-500">Set a new password for this user.</p>
-                    <Input
-                      type="password"
-                      placeholder="New password (min. 8 characters)"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                    />
-                    <Button
-                      type="submit"
-                      disabled={passwordSubmitting || newPassword.length < 8}
-                      variant="outline"
-                      className="border-neutral-300 hover:border-neutral-900 hover:bg-neutral-50 cursor-pointer"
-                    >
-                      {passwordSubmitting ? "Updating…" : "Update Password"}
-                    </Button>
-                  </form>
-
-                  {/* Manage access */}
-                  <Button
-                    variant="outline"
-                    render={<Link href={`/dashboard/users/${selectedUser.id}/access`} />}
-                    className="w-full justify-between border-neutral-200 hover:border-neutral-900 hover:bg-neutral-50 cursor-pointer"
-                  >
-                    Manage Property & Menu Access
-                    <ArrowRight className="size-4" />
-                  </Button>
-                </div>
-
-                <SheetFooter className="border-t border-neutral-200 px-6 py-4">
-                  <button
-                    onClick={() => setDeleteTarget(selectedUser)}
-                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 hover:border-red-400"
-                  >
-                    <Trash2 className="size-4" />
-                    Delete User
-                  </button>
-                </SheetFooter>
-              </>
-            );
-          })()}
-        </SheetContent>
-      </Sheet>
-
-      {/* Confirm: toggle active */}
-      <ConfirmDialog
-        open={!!toggleTarget}
-        onOpenChange={(v) => { if (!v) setToggleTarget(null); }}
-        title={toggleTarget?.isActive ? "Deactivate account?" : "Activate account?"}
-        description={
-          toggleTarget?.isActive
-            ? `${toggleTarget.name ?? toggleTarget.email} will be blocked from logging in. Their access settings are preserved.`
-            : `${toggleTarget?.name ?? toggleTarget?.email} will be able to log in again.`
-        }
-        confirmLabel={toggleTarget?.isActive ? "Deactivate" : "Activate"}
-        onConfirm={handleToggleActive}
-        loading={toggling}
-      />
-
-      {/* Confirm: delete */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
-        title="Delete user?"
-        description={`${deleteTarget?.name ?? deleteTarget?.email} and all their access records will be permanently removed. This cannot be undone.`}
-        confirmLabel="Delete"
-        onConfirm={handleDelete}
-        loading={deleting}
-      />
     </div>
   );
 }

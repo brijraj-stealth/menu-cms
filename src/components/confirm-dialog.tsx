@@ -41,7 +41,7 @@ export function ConfirmDialog({
             Cancel
           </Button>
           <Button variant="destructive" onClick={onConfirm} disabled={loading}>
-            {loading ? "Deleting…" : confirmLabel}
+            {loading ? `${confirmLabel ?? "Confirm"}…` : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
