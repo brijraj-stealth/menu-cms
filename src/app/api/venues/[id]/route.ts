@@ -79,7 +79,7 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
 
-    const before = await prisma.venue.findUnique({ where: { id }, select: { name: true, description: true, address: true, isActive: true } });
+    const before = await prisma.venue.findUnique({ where: { id }, select: { name: true, description: true, address: true, image: true, isActive: true } });
 
     const venue = await prisma.venue.update({
       where: { id },
@@ -88,7 +88,7 @@ export async function PUT(
     });
 
     if (before) {
-      const tracked = ["name", "description", "address", "isActive"] as const;
+      const tracked = ["name", "description", "address", "image", "isActive"] as const;
       const changes = tracked
         .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
         .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));

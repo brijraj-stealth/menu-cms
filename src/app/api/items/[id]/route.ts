@@ -77,7 +77,7 @@ export async function PUT(
 
     const { allergenIds, variants, ...itemData } = parsed.data;
 
-    const before = await prisma.item.findUnique({ where: { id }, select: { name: true, description: true, basePrice: true, isActive: true } });
+    const before = await prisma.item.findUnique({ where: { id }, select: { name: true, description: true, basePrice: true, image: true, isActive: true, sortOrder: true } });
 
     const item = await prisma.$transaction(async (tx) => {
       const updated = await tx.item.update({ where: { id }, data: itemData });
@@ -112,7 +112,7 @@ export async function PUT(
     });
 
     if (before) {
-      const tracked = ["name", "description", "basePrice", "isActive"] as const;
+      const tracked = ["name", "description", "basePrice", "image", "isActive", "sortOrder"] as const;
       const changes = tracked
         .filter((f) => before[f] !== (itemData as Record<string, unknown>)[f] && (itemData as Record<string, unknown>)[f] !== undefined)
         .map((f) => ({ field: f, old: before[f] ?? null, new: (itemData as Record<string, unknown>)[f] ?? null }));

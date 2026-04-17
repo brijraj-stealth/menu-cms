@@ -44,6 +44,17 @@ export async function POST(
       },
     });
 
+    const menu = await prisma.menu.findUnique({ where: { id: menuId }, select: { name: true } });
+    await prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "added video to",
+        entityType: "menu",
+        entityId: menuId,
+        metadata: { entityName: menu?.name ?? menuId, changes: [{ field: "url", old: null, new: video.url }] },
+      },
+    });
+
     return Response.json({ data: video }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to add video" }, { status: 500 });

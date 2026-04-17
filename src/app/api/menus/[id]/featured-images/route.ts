@@ -44,6 +44,17 @@ export async function POST(
       },
     });
 
+    const menu = await prisma.menu.findUnique({ where: { id: menuId }, select: { name: true } });
+    await prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "added image to",
+        entityType: "menu",
+        entityId: menuId,
+        metadata: { entityName: menu?.name ?? menuId, changes: [{ field: "url", old: null, new: image.url }] },
+      },
+    });
+
     return Response.json({ data: image }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to add featured image" }, { status: 500 });

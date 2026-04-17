@@ -88,7 +88,7 @@ export async function PUT(
       );
     }
 
-    const before = await prisma.property.findUnique({ where: { id }, select: { name: true, description: true, location: true, isActive: true } });
+    const before = await prisma.property.findUnique({ where: { id }, select: { name: true, description: true, location: true, logo: true, isActive: true } });
 
     const property = await prisma.property.update({
       where: { id },
@@ -97,7 +97,7 @@ export async function PUT(
     });
 
     if (before) {
-      const tracked = ["name", "description", "location", "isActive"] as const;
+      const tracked = ["name", "description", "location", "logo", "isActive"] as const;
       const changes = tracked
         .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
         .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));

@@ -42,6 +42,17 @@ export async function POST(request: Request) {
     }
 
     const subCategory = await prisma.subCategory.create({ data: { ...data, categoryId } });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "created",
+        entityType: "subcategory",
+        entityId: subCategory.id,
+        metadata: { entityName: subCategory.name },
+      },
+    });
+
     return Response.json({ data: subCategory }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to create sub-category" }, { status: 500 });

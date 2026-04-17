@@ -64,6 +64,18 @@ export async function POST(request: Request) {
       })
     );
 
+    for (const item of created) {
+      await prisma.activityLog.create({
+        data: {
+          userId: session.user.id as string,
+          action: "copied",
+          entityType: "item",
+          entityId: item.id,
+          metadata: { entityName: item.name },
+        },
+      });
+    }
+
     return Response.json({ data: { copied: created.length } }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to copy items" }, { status: 500 });

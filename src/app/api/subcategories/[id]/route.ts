@@ -57,7 +57,26 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
 
+    const before = await prisma.subCategory.findUnique({ where: { id }, select: { name: true, description: true, sortOrder: true, displayMode: true, isActive: true } });
+
     const subCategory = await prisma.subCategory.update({ where: { id }, data: parsed.data });
+
+    if (before) {
+      const tracked = ["name", "description", "sortOrder", "displayMode", "isActive"] as const;
+      const changes = tracked
+        .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
+        .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));
+      await prisma.activityLog.create({
+        data: {
+          userId: session.user.id as string,
+          action: "updated",
+          entityType: "subcategory",
+          entityId: id,
+          metadata: { entityName: subCategory.name, changes },
+        },
+      });
+    }
+
     return Response.json({ data: subCategory });
   } catch {
     return Response.json({ error: "Failed to update sub-category" }, { status: 500 });
@@ -77,7 +96,17 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    const subCategory = await prisma.subCategory.findUnique({ where: { id }, select: { name: true } });
     await prisma.subCategory.delete({ where: { id } });
+    await prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "deleted",
+        entityType: "subcategory",
+        entityId: id,
+        metadata: { entityName: subCategory?.name ?? id },
+      },
+    });
     return Response.json({ data: { success: true } });
   } catch {
     return Response.json({ error: "Failed to delete sub-category" }, { status: 500 });

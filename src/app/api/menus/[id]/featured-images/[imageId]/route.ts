@@ -31,7 +31,26 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
 
+    const before = await prisma.menuFeaturedImage.findUnique({ where: { id: imageId }, select: { url: true, title: true, sortOrder: true, menuId: true } });
     const image = await prisma.menuFeaturedImage.update({ where: { id: imageId }, data: parsed.data });
+
+    if (before) {
+      const tracked = ["url", "title", "sortOrder"] as const;
+      const changes = tracked
+        .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
+        .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));
+      const menu = await prisma.menu.findUnique({ where: { id: before.menuId }, select: { name: true } });
+      await prisma.activityLog.create({
+        data: {
+          userId: session.user.id as string,
+          action: "updated image on",
+          entityType: "menu",
+          entityId: before.menuId,
+          metadata: { entityName: menu?.name ?? before.menuId, changes },
+        },
+      });
+    }
+
     return Response.json({ data: image });
   } catch {
     return Response.json({ error: "Failed to update featured image" }, { status: 500 });
@@ -51,7 +70,20 @@ export async function DELETE(
   const { imageId } = await params;
 
   try {
+    const img = await prisma.menuFeaturedImage.findUnique({ where: { id: imageId }, select: { url: true, menuId: true } });
     await prisma.menuFeaturedImage.delete({ where: { id: imageId } });
+    if (img) {
+      const menu = await prisma.menu.findUnique({ where: { id: img.menuId }, select: { name: true } });
+      await prisma.activityLog.create({
+        data: {
+          userId: session.user.id as string,
+          action: "removed image from",
+          entityType: "menu",
+          entityId: img.menuId,
+          metadata: { entityName: menu?.name ?? img.menuId, changes: [{ field: "url", old: img.url, new: null }] },
+        },
+      });
+    }
     return Response.json({ data: { success: true } });
   } catch {
     return Response.json({ error: "Failed to delete featured image" }, { status: 500 });

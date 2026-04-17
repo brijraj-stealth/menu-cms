@@ -115,6 +115,16 @@ export async function POST(
       return menu;
     });
 
+    await prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "duplicated",
+        entityType: "menu",
+        entityId: newMenu.id,
+        metadata: { entityName: newMenu.name, changes: [{ field: "source", old: source.name, new: newMenu.name }] },
+      },
+    });
+
     return Response.json({ data: newMenu }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to duplicate menu" }, { status: 500 });

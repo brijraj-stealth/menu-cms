@@ -42,6 +42,17 @@ export async function POST(request: Request) {
     }
 
     const category = await prisma.category.create({ data: { ...data, menuId } });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "created",
+        entityType: "category",
+        entityId: category.id,
+        metadata: { entityName: category.name },
+      },
+    });
+
     return Response.json({ data: category }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to create category" }, { status: 500 });

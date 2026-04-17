@@ -52,7 +52,26 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
 
+    const before = await prisma.category.findUnique({ where: { id }, select: { name: true, description: true, sortOrder: true, isActive: true } });
+
     const category = await prisma.category.update({ where: { id }, data: parsed.data });
+
+    if (before) {
+      const tracked = ["name", "description", "sortOrder", "isActive"] as const;
+      const changes = tracked
+        .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
+        .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));
+      await prisma.activityLog.create({
+        data: {
+          userId: session.user.id as string,
+          action: "updated",
+          entityType: "category",
+          entityId: id,
+          metadata: { entityName: category.name, changes },
+        },
+      });
+    }
+
     return Response.json({ data: category });
   } catch {
     return Response.json({ error: "Failed to update category" }, { status: 500 });
@@ -72,7 +91,17 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    const category = await prisma.category.findUnique({ where: { id }, select: { name: true } });
     await prisma.category.delete({ where: { id } });
+    await prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "deleted",
+        entityType: "category",
+        entityId: id,
+        metadata: { entityName: category?.name ?? id },
+      },
+    });
     return Response.json({ data: { success: true } });
   } catch {
     return Response.json({ error: "Failed to delete category" }, { status: 500 });
