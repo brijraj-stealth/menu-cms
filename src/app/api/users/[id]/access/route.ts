@@ -168,13 +168,31 @@ export async function DELETE(
   const { type, targetId } = parsed.data;
 
   if (type === "property") {
-    await prisma.userPropertyAccess.delete({
-      where: { userId_propertyId: { userId, propertyId: targetId } },
+    // Cascade: remove all venue and menu access under this property for this user
+    const venues = await prisma.venue.findMany({
+      where: { propertyId: targetId },
+      select: { id: true, menus: { select: { id: true } } },
     });
+    const venueIds = venues.map((v) => v.id);
+    const menuIds = venues.flatMap((v) => v.menus.map((m) => m.id));
+
+    await prisma.$transaction([
+      prisma.userMenuAccess.deleteMany({ where: { userId, menuId: { in: menuIds } } }),
+      prisma.userVenueAccess.deleteMany({ where: { userId, venueId: { in: venueIds } } }),
+      prisma.userPropertyAccess.delete({ where: { userId_propertyId: { userId, propertyId: targetId } } }),
+    ]);
   } else if (type === "venue") {
-    await prisma.userVenueAccess.delete({
-      where: { userId_venueId: { userId, venueId: targetId } },
+    // Cascade: remove all menu access under this venue for this user
+    const menus = await prisma.menu.findMany({
+      where: { venueId: targetId },
+      select: { id: true },
     });
+    const menuIds = menus.map((m) => m.id);
+
+    await prisma.$transaction([
+      prisma.userMenuAccess.deleteMany({ where: { userId, menuId: { in: menuIds } } }),
+      prisma.userVenueAccess.delete({ where: { userId_venueId: { userId, venueId: targetId } } }),
+    ]);
   } else {
     await prisma.userMenuAccess.delete({
       where: { userId_menuId: { userId, menuId: targetId } },
