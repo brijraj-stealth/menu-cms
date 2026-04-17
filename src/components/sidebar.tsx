@@ -50,7 +50,7 @@ export function Sidebar({ user }: SidebarProps) {
         {visibleItems.map(({ label, href, icon: Icon }) => {
           const isActive =
             href === "/dashboard"
-              ? pathname === "/dashboard"
+              ? pathname === "/dashboard" || pathname.startsWith("/dashboard/properties")
               : pathname.startsWith(href);
 
           return (

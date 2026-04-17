@@ -24,10 +24,15 @@ export async function GET() {
   }
 }
 
+function isAdmin(role: string) {
+  return role === "SUPER_ADMIN" || role === "ADMIN";
+}
+
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Plus, Pencil, Trash2, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ interface Allergen {
 }
 
 export default function AllergensPage() {
+  const { data: session } = useSession();
   const [allergens, setAllergens] = useState<Allergen[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -29,16 +31,17 @@ export default function AllergensPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const canManage =
+    session?.user.role === "SUPER_ADMIN" || session?.user.role === "ADMIN";
+
   async function fetchAllergens() {
-    const res = await fetch("/api/allergens");
+    const res = await fetch("/api/allergens", { cache: "no-store" });
     const json = await res.json();
     if (json.data) setAllergens(json.data);
     setLoading(false);
   }
 
-  useEffect(() => {
-    fetchAllergens();
-  }, []);
+  useEffect(() => { fetchAllergens(); }, []);
 
   function openCreate() {
     setEditing(null);
@@ -67,10 +70,7 @@ export default function AllergensPage() {
         body: JSON.stringify(form),
       });
       const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? "Failed to save allergen");
-        return;
-      }
+      if (!res.ok) { setError(json.error ?? "Failed to save allergen"); return; }
       await fetchAllergens();
       setOpen(false);
     } finally {
@@ -79,7 +79,7 @@ export default function AllergensPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this allergen?")) return;
+    if (!confirm("Delete this allergen? It will be removed from all menu items.")) return;
     await fetch(`/api/allergens/${id}`, { method: "DELETE" });
     setAllergens((prev) => prev.filter((a) => a.id !== id));
   }
@@ -90,6 +90,9 @@ export default function AllergensPage() {
         <h1 className="text-2xl font-semibold">Allergens</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Global allergens that can be applied to any menu item.
+          {!canManage && (
+            <span className="ml-1 text-muted-foreground/70">(View only — contact an admin to make changes)</span>
+          )}
         </p>
       </div>
 
@@ -97,50 +100,55 @@ export default function AllergensPage() {
         <span className="text-sm text-muted-foreground">
           {allergens.length} allergen{allergens.length !== 1 ? "s" : ""}
         </span>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button size="sm"><Plus />Add Allergen</Button>} onClick={openCreate} />
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editing ? "Edit Allergen" : "Add Allergen"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              <div className="flex gap-3">
-                <div className="flex flex-col gap-1.5 w-16">
-                  <label className="text-sm font-medium">Icon</label>
+        {canManage && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger
+              render={<Button size="sm"><Plus />Add Allergen</Button>}
+              onClick={openCreate}
+            />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editing ? "Edit Allergen" : "Add Allergen"}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <div className="flex w-16 flex-col gap-1.5">
+                    <label className="text-sm font-medium">Icon</label>
+                    <Input
+                      placeholder="🥛"
+                      value={form.icon}
+                      onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
+                      className="text-center text-lg"
+                    />
+                  </div>
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <label className="text-sm font-medium">Name *</label>
+                    <Input
+                      placeholder="e.g. Dairy"
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">Description</label>
                   <Input
-                    placeholder="🥛"
-                    value={form.icon}
-                    onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
-                    className="text-center text-lg"
+                    placeholder="Optional description"
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                   />
                 </div>
-                <div className="flex flex-col gap-1.5 flex-1">
-                  <label className="text-sm font-medium">Name *</label>
-                  <Input
-                    placeholder="e.g. Dairy"
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Description</label>
-                <Input
-                  placeholder="Optional description"
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                />
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <DialogFooter>
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? "Saving…" : editing ? "Save Changes" : "Create Allergen"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <DialogFooter>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? "Saving…" : editing ? "Save Changes" : "Create Allergen"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {loading ? (
@@ -158,7 +166,9 @@ export default function AllergensPage() {
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Icon</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Name</th>
                 <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Description</th>
-                <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">Actions</th>
+                {canManage && (
+                  <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -167,27 +177,25 @@ export default function AllergensPage() {
                   <td className="px-4 py-3 text-xl">{a.icon ?? "—"}</td>
                   <td className="px-4 py-3 font-medium">{a.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{a.description ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => openEdit(a)}
-                      >
-                        <Pencil className="size-3.5" />
-                        <span className="sr-only">Edit</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleDelete(a.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="size-3.5" />
-                        <span className="sr-only">Delete</span>
-                      </Button>
-                    </div>
-                  </td>
+                  {canManage && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon-sm" onClick={() => openEdit(a)}>
+                          <Pencil className="size-3.5" />
+                          <span className="sr-only">Edit</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleDelete(a.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="size-3.5" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

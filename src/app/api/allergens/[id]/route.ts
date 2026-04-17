@@ -30,13 +30,18 @@ export async function GET(
   }
 }
 
+function isAdmin(role: string) {
+  return role === "SUPER_ADMIN" || role === "ADMIN";
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -68,8 +73,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
