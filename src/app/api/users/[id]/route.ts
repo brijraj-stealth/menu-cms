@@ -4,6 +4,10 @@ import { UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
+function isAdmin(role: string) {
+  return role === "SUPER_ADMIN" || role === "ADMIN";
+}
+
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
