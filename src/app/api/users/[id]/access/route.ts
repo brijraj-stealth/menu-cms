@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
-import { Permission } from "@/generated/prisma";
+import { Permission } from "@prisma/client";
 import { z } from "zod";
 
 const accessSchema = z.object({

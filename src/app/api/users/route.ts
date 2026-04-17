@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
-import { UserRole } from "@/generated/prisma";
+import { UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
