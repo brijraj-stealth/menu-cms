@@ -4,282 +4,117 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Check } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Lock, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Permission = "VIEW" | "ADD" | "EDIT" | "DELETE";
-const ALL_PERMISSIONS: Permission[] = ["VIEW", "ADD", "EDIT", "DELETE"];
+const ALL_PERMS: Permission[] = ["VIEW", "ADD", "EDIT", "DELETE"];
+const PERM_LABELS: Record<Permission, string> = { VIEW: "View", ADD: "Add", EDIT: "Edit", DELETE: "Delete" };
 
-interface UserInfo {
-  id: string;
-  name: string | null;
-  email: string;
-  role: string;
-}
-
-interface PropertyAccess {
-  id: string;
-  permissions: Permission[];
-  property: { id: string; name: string; slug: string };
-}
-
-interface VenueAccess {
-  id: string;
-  permissions: Permission[];
-  venue: { id: string; name: string; propertyId: string };
-}
-
-interface MenuAccess {
-  id: string;
-  permissions: Permission[];
-  menu: { id: string; name: string; venueId: string };
-}
-
-interface Venue {
-  id: string;
-  name: string;
-  propertyId: string;
-  menus: { id: string; name: string; venueId: string }[];
-}
-
-interface Property {
-  id: string;
-  name: string;
-  slug: string;
-  venues: Venue[];
-}
-
+interface UserInfo { id: string; name: string | null; email: string; role: string; }
+interface PropertyAccess { id: string; permissions: Permission[]; property: { id: string; name: string; slug: string }; }
+interface VenueAccess { id: string; permissions: Permission[]; venue: { id: string; name: string; propertyId: string }; }
+interface MenuAccess { id: string; permissions: Permission[]; menu: { id: string; name: string; venueId: string }; }
+interface MenuStub { id: string; name: string; venueId: string; }
+interface VenueStub { id: string; name: string; propertyId: string; menus: MenuStub[]; }
+interface PropertyStub { id: string; name: string; slug: string; venues: VenueStub[]; }
 interface AccessData {
   user: UserInfo;
-  properties: Property[];
+  properties: PropertyStub[];
   propertyAccess: PropertyAccess[];
   venueAccess: VenueAccess[];
   menuAccess: MenuAccess[];
 }
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-
-function PageSkeleton() {
-  return (
-    <div className="max-w-3xl">
-      <div className="mb-4 h-8 w-24 animate-pulse rounded bg-muted" />
-      <div className="mb-6 flex items-center gap-3">
-        <div className="size-10 animate-pulse rounded-full bg-muted" />
-        <div>
-          <div className="h-5 w-36 animate-pulse rounded bg-muted" />
-          <div className="mt-1.5 h-4 w-48 animate-pulse rounded bg-muted" />
-        </div>
-      </div>
-      {[...Array(3)].map((_, i) => (
-        <div key={i} className="mb-6 rounded-xl border">
-          <div className="border-b bg-muted/30 px-4 py-3">
-            <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-          </div>
-          <div className="px-4 py-3">
-            <div className="h-4 w-48 animate-pulse rounded bg-muted" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Permission Checkbox Row ──────────────────────────────────────────────────
-
-function PermissionCheckboxes({
-  permissions,
-  onChange,
-}: {
+// ── Permission toggle pills ──────────────────────────────────────────────────
+function PermToggles({ permissions, onChange, disabled }: {
   permissions: Permission[];
   onChange: (perms: Permission[]) => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3">
-      {ALL_PERMISSIONS.map((p) => {
-        const checked = permissions.includes(p);
+    <div className="flex items-center gap-1">
+      {ALL_PERMS.map((p) => {
+        const active = permissions.includes(p);
         return (
-          <label key={p} className="flex cursor-pointer items-center gap-1 text-xs">
-            <input
-              type="checkbox"
-              checked={checked}
-              onChange={() => {
-                const next = checked
-                  ? permissions.filter((x) => x !== p)
-                  : [...permissions, p];
-                onChange(next);
-              }}
-              className="size-3.5 rounded accent-current"
-            />
-            {p}
-          </label>
+          <button
+            key={p}
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              const next = active ? permissions.filter((x) => x !== p) : [...permissions, p];
+              if (next.length > 0) onChange(next);
+            }}
+            title={PERM_LABELS[p]}
+            className={`rounded px-2 py-0.5 text-xs font-semibold transition ${
+              active
+                ? "bg-neutral-900 text-white"
+                : "bg-neutral-100 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600"
+            } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+          >
+            {p[0]}
+          </button>
         );
       })}
     </div>
   );
 }
 
-// ─── Add Access Row ───────────────────────────────────────────────────────────
-
-function AddAccessRow({
-  label,
-  options,
-  existingIds,
-  onAdd,
-}: {
+// ── Inline grant form ────────────────────────────────────────────────────────
+function GrantForm({ label, onGrant, onCancel }: {
   label: string;
-  options: { id: string; name: string }[];
-  existingIds: string[];
-  onAdd: (targetId: string, permissions: Permission[]) => Promise<void>;
+  onGrant: (perms: Permission[]) => Promise<void>;
+  onCancel: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [targetId, setTargetId] = useState("");
-  const [permissions, setPermissions] = useState<Permission[]>(["VIEW"]);
+  const [perms, setPerms] = useState<Permission[]>(["VIEW"]);
   const [saving, setSaving] = useState(false);
 
-  const available = options.filter((o) => !existingIds.includes(o.id));
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        <Plus className="size-3.5" />
-        Add {label} access
-      </button>
-    );
-  }
-
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed bg-muted/30 p-3">
-      <Select value={targetId} onValueChange={(val) => val && setTargetId(val)}>
-        <SelectTrigger size="sm" className="min-w-40">
-          <SelectValue placeholder={`Select ${label}…`} />
-        </SelectTrigger>
-        <SelectContent>
-          {available.map((o) => (
-            <SelectItem key={o.id} value={o.id}>
-              {o.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <PermissionCheckboxes permissions={permissions} onChange={setPermissions} />
-      <Button
-        size="xs"
-        disabled={!targetId || permissions.length === 0 || saving}
-        onClick={async () => {
-          setSaving(true);
-          await onAdd(targetId, permissions);
-          setTargetId("");
-          setPermissions(["VIEW"]);
-          setOpen(false);
-          setSaving(false);
-        }}
-      >
-        <Check className="size-3" />
-        {saving ? "Saving…" : "Add"}
-      </Button>
-      <button
-        onClick={() => setOpen(false)}
-        className="text-xs text-muted-foreground hover:text-foreground"
-      >
-        Cancel
-      </button>
-    </div>
-  );
-}
-
-// ─── Access Table ─────────────────────────────────────────────────────────────
-
-function AccessTable<T extends { id: string; permissions: Permission[] }>({
-  title,
-  rows,
-  getName,
-  addLabel,
-  addOptions,
-  existingIds,
-  onPermissionChange,
-  onRemove,
-  onAdd,
-}: {
-  title: string;
-  rows: T[];
-  getName: (row: T) => string;
-  addLabel: string;
-  addOptions: { id: string; name: string }[];
-  existingIds: string[];
-  onPermissionChange: (row: T, perms: Permission[]) => Promise<void>;
-  onRemove: (row: T) => void;
-  onAdd: (targetId: string, permissions: Permission[]) => Promise<void>;
-}) {
-  return (
-    <div className="rounded-xl border">
-      <div className="flex items-center border-b bg-muted/30 px-4 py-3">
-        <h3 className="font-medium">{title}</h3>
-        <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-          {rows.length}
-        </span>
-      </div>
-      <div className="divide-y">
-        {rows.length > 0 ? (
-          rows.map((row) => (
-            <div
-              key={row.id}
-              className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-            >
-              <span className="min-w-35 text-sm font-medium">
-                {getName(row)}
-              </span>
-              <PermissionCheckboxes
-                permissions={row.permissions}
-                onChange={(perms) => onPermissionChange(row, perms)}
-              />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => onRemove(row)}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="size-3.5" />
-                <span className="sr-only">Remove</span>
-              </Button>
-            </div>
-          ))
-        ) : (
-          <div className="px-4 py-3 text-sm text-muted-foreground">
-            No {title.toLowerCase()} access assigned.
-          </div>
-        )}
-      </div>
-      <div className="border-t px-2 py-2">
-        <AddAccessRow
-          label={addLabel}
-          options={addOptions}
-          existingIds={existingIds}
-          onAdd={onAdd}
-        />
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-3">
+      <span className="text-xs font-medium text-neutral-500">Permissions for {label}:</span>
+      <PermToggles permissions={perms} onChange={setPerms} />
+      <div className="flex items-center gap-2">
+        <Button
+          size="xs"
+          disabled={saving || perms.length === 0}
+          onClick={async () => { setSaving(true); await onGrant(perms); setSaving(false); }}
+          className="bg-neutral-900 text-white hover:bg-neutral-700"
+        >
+          {saving ? "Saving…" : "Grant Access"}
+        </Button>
+        <button onClick={onCancel} className="text-xs text-neutral-400 hover:text-neutral-700">Cancel</button>
       </div>
     </div>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ── Skeleton ─────────────────────────────────────────────────────────────────
+function PageSkeleton() {
+  return (
+    <div>
+      <div className="mb-6 h-8 w-24 animate-pulse rounded-lg bg-neutral-100" />
+      <div className="mb-8 flex items-center gap-4">
+        <div className="size-12 animate-pulse rounded-full bg-neutral-100" />
+        <div>
+          <div className="h-5 w-36 animate-pulse rounded-lg bg-neutral-100" />
+          <div className="mt-1.5 h-4 w-48 animate-pulse rounded-lg bg-neutral-100" />
+        </div>
+      </div>
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="mb-4 rounded-2xl border border-neutral-200 p-5">
+          <div className="h-4 w-48 animate-pulse rounded-lg bg-neutral-100" />
+          <div className="mt-3 h-3 w-64 animate-pulse rounded-lg bg-neutral-100" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
-const roleColors: Record<string, string> = {
+const ROLE_STYLES: Record<string, string> = {
   SUPER_ADMIN: "bg-purple-100 text-purple-700",
   ADMIN: "bg-blue-100 text-blue-700",
-  STAFF: "bg-gray-100 text-gray-600",
+  STAFF: "bg-neutral-100 text-neutral-600",
 };
 
 export default function UserAccessPage() {
@@ -288,23 +123,40 @@ export default function UserAccessPage() {
   const [loading, setLoading] = useState(true);
   const [removeTarget, setRemoveTarget] = useState<{ type: string; id: string; name: string } | null>(null);
   const [removing, setRemoving] = useState(false);
+  // Which grant forms are open: "prop:{id}", "venue:{id}", "menu:{id}"
+  const [openGrantForms, setOpenGrantForms] = useState<Set<string>>(new Set());
+  // Which property sections are expanded
+  const [expandedProps, setExpandedProps] = useState<Set<string>>(new Set());
+  // Which venue sections are expanded
+  const [expandedVenues, setExpandedVenues] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async () => {
     const res = await fetch(`/api/users/${id}/access`);
     const json = await res.json();
-    if (json.data) setData(json.data);
+    if (json.data) {
+      setData(json.data);
+      // Auto-expand properties/venues where user has access
+      const newExpandedProps = new Set<string>();
+      const newExpandedVenues = new Set<string>();
+      json.data.propertyAccess.forEach((a: PropertyAccess) => newExpandedProps.add(a.property.id));
+      json.data.venueAccess.forEach((a: VenueAccess) => newExpandedVenues.add(a.venue.id));
+      setExpandedProps(newExpandedProps);
+      setExpandedVenues(newExpandedVenues);
+    }
     setLoading(false);
   }, [id]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  async function saveAccess(
-    type: "property" | "venue" | "menu",
-    targetId: string,
-    permissions: Permission[]
-  ) {
+  function toggleGrantForm(key: string) {
+    setOpenGrantForms((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  async function saveAccess(type: "property" | "venue" | "menu", targetId: string, permissions: Permission[]) {
     if (permissions.length === 0) return;
     await fetch(`/api/users/${id}/access`, {
       method: "POST",
@@ -313,9 +165,10 @@ export default function UserAccessPage() {
     });
     fetchData();
     toast.success("Access updated");
+    setOpenGrantForms((prev) => { const next = new Set(prev); next.delete(`${type}:${targetId}`); return next; });
   }
 
-  async function handleRemoveAccess() {
+  async function handleRemove() {
     if (!removeTarget) return;
     setRemoving(true);
     try {
@@ -333,136 +186,254 @@ export default function UserAccessPage() {
   }
 
   if (loading) return <PageSkeleton />;
-
-  if (!data) {
-    return (
-      <div className="py-20 text-center text-sm text-destructive">
-        User not found.
-      </div>
-    );
-  }
+  if (!data) return <div className="py-20 text-center text-sm text-red-600">User not found.</div>;
 
   const { user, properties, propertyAccess, venueAccess, menuAccess } = data;
-
-  const allVenues = properties.flatMap((p) => p.venues);
-  const allMenus = allVenues.flatMap((v) => v.menus);
+  const isAdminUser = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
 
   return (
     <div className="max-w-3xl">
       {/* Back */}
-      <Button
-        variant="ghost"
-        size="sm"
-        render={<Link href="/dashboard/users" />}
-        className="-ml-2 mb-4"
-      >
-        <ArrowLeft className="size-4" />
-        Users
+      <Button variant="ghost" size="sm" render={<Link href="/dashboard/users" />} className="-ml-2 mb-6 text-neutral-500 hover:text-neutral-900">
+        <ArrowLeft className="size-4" /> All Users
       </Button>
 
       {/* User info */}
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold uppercase text-slate-700">
+      <div className="mb-8 flex items-center gap-4 rounded-2xl border border-neutral-200 bg-white p-5">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-base font-bold uppercase text-neutral-700">
           {user.name?.[0] ?? user.email[0]}
         </div>
-        <div>
-          <h1 className="text-lg font-semibold">{user.name ?? user.email}</h1>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">{user.email}</span>
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                roleColors[user.role] ?? "bg-muted text-muted-foreground"
-              }`}
-            >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-lg font-bold text-neutral-900">{user.name ?? user.email}</h1>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${ROLE_STYLES[user.role] ?? "bg-neutral-100 text-neutral-600"}`}>
               {user.role.replace("_", " ")}
             </span>
           </div>
+          <p className="mt-0.5 text-sm text-neutral-500">{user.email}</p>
         </div>
+        {isAdminUser && (
+          <div className="shrink-0 rounded-xl bg-blue-50 px-4 py-3 text-center">
+            <p className="text-xs font-semibold text-blue-700">Admin User</p>
+            <p className="mt-0.5 text-xs text-blue-500">Full access to everything</p>
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-col gap-6">
-        {/* Property Access */}
-        <AccessTable
-          title="Property Access"
-          rows={propertyAccess}
-          getName={(r) => r.property.name}
-          addLabel="property"
-          addOptions={properties.map((p) => ({ id: p.id, name: p.name }))}
-          existingIds={propertyAccess.map((r) => r.property.id)}
-          onPermissionChange={(row, perms) =>
-            saveAccess("property", row.property.id, perms)
-          }
-          onRemove={(row) =>
-            setRemoveTarget({ type: "property", id: row.property.id, name: row.property.name })
-          }
-          onAdd={(targetId, perms) => saveAccess("property", targetId, perms)}
-        />
+      {isAdminUser ? (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
+          <p className="text-sm font-medium text-blue-800">This user has admin-level access and can manage all properties, venues, and menus without explicit access grants.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {/* Page instructions */}
+          <div className="rounded-xl bg-neutral-50 border border-neutral-200 px-4 py-3">
+            <p className="text-sm text-neutral-600">
+              <span className="font-semibold">How access works:</span> Grant property access first, then venue access becomes available, then menu access. Use the <span className="font-mono bg-neutral-100 px-1 rounded text-xs">V A E D</span> toggles to set permissions (View · Add · Edit · Delete).
+            </p>
+          </div>
 
-        {/* Venue Access */}
-        <AccessTable
-          title="Venue Access"
-          rows={venueAccess}
-          getName={(r) => {
-            const prop = properties.find((p) =>
-              p.venues.some((v) => v.id === r.venue.id)
-            );
-            return prop ? `${prop.name} / ${r.venue.name}` : r.venue.name;
-          }}
-          addLabel="venue"
-          addOptions={allVenues.map((v) => {
-            const prop = properties.find((p) =>
-              p.venues.some((vv) => vv.id === v.id)
-            );
-            return { id: v.id, name: prop ? `${prop.name} / ${v.name}` : v.name };
-          })}
-          existingIds={venueAccess.map((r) => r.venue.id)}
-          onPermissionChange={(row, perms) =>
-            saveAccess("venue", row.venue.id, perms)
-          }
-          onRemove={(row) =>
-            setRemoveTarget({ type: "venue", id: row.venue.id, name: row.venue.name })
-          }
-          onAdd={(targetId, perms) => saveAccess("venue", targetId, perms)}
-        />
+          {/* Cascade tree */}
+          {properties.map((prop) => {
+            const pAccess = propertyAccess.find((a) => a.property.id === prop.id);
+            const isPropExpanded = expandedProps.has(prop.id);
+            const propGrantKey = `property:${prop.id}`;
 
-        {/* Menu Access */}
-        <AccessTable
-          title="Menu Access"
-          rows={menuAccess}
-          getName={(r) => {
-            const venue = allVenues.find((v) => v.id === r.menu.venueId);
-            const prop = venue
-              ? properties.find((p) =>
-                  p.venues.some((v) => v.id === venue.id)
-                )
-              : null;
-            return prop && venue
-              ? `${prop.name} / ${venue.name} / ${r.menu.name}`
-              : r.menu.name;
-          }}
-          addLabel="menu"
-          addOptions={allMenus.map((m) => {
-            const venue = allVenues.find((v) => v.id === m.venueId);
-            const prop = venue
-              ? properties.find((p) =>
-                  p.venues.some((v) => v.id === venue.id)
-                )
-              : null;
-            return {
-              id: m.id,
-              name: prop && venue ? `${prop.name} / ${venue.name} / ${m.name}` : m.name,
-            };
+            return (
+              <div key={prop.id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+                {/* Property row */}
+                <div className="flex items-center gap-3 px-5 py-4">
+                  <button
+                    onClick={() => setExpandedProps((p) => { const n = new Set(p); if (n.has(prop.id)) n.delete(prop.id); else n.add(prop.id); return n; })}
+                    className="flex shrink-0 items-center text-neutral-400 hover:text-neutral-700"
+                    title={isPropExpanded ? "Collapse" : "Expand"}
+                  >
+                    {isPropExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                  </button>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-sm font-bold text-neutral-600">
+                    {prop.name[0]?.toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-neutral-900">{prop.name}</p>
+                    <p className="text-xs text-neutral-400">{prop.venues.length} venue{prop.venues.length !== 1 ? "s" : ""}</p>
+                  </div>
+
+                  {pAccess ? (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <PermToggles
+                        permissions={pAccess.permissions}
+                        onChange={(perms) => saveAccess("property", prop.id, perms)}
+                      />
+                      <button
+                        onClick={() => setRemoveTarget({ type: "property", id: prop.id, name: prop.name })}
+                        className="ml-1 rounded-lg p-1 text-neutral-300 hover:bg-red-50 hover:text-red-500"
+                        title="Remove property access"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { toggleGrantForm(propGrantKey); setExpandedProps((p) => new Set([...p, prop.id])); }}
+                      className="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-500 hover:border-neutral-400 hover:text-neutral-900 transition"
+                    >
+                      <Plus className="size-3.5" /> Grant access
+                    </button>
+                  )}
+                </div>
+
+                {/* Property grant form */}
+                {openGrantForms.has(propGrantKey) && !pAccess && (
+                  <div className="border-t border-neutral-100 px-5 pb-4 pt-3">
+                    <GrantForm
+                      label={prop.name}
+                      onGrant={(perms) => saveAccess("property", prop.id, perms)}
+                      onCancel={() => toggleGrantForm(propGrantKey)}
+                    />
+                  </div>
+                )}
+
+                {/* Venues — only show if property access exists */}
+                {isPropExpanded && pAccess && (
+                  <div className="border-t border-neutral-100 bg-neutral-50 px-5 py-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Venues</p>
+                    <div className="flex flex-col gap-2">
+                      {prop.venues.map((venue) => {
+                        const vAccess = venueAccess.find((a) => a.venue.id === venue.id);
+                        const isVenueExpanded = expandedVenues.has(venue.id);
+                        const venueGrantKey = `venue:${venue.id}`;
+
+                        return (
+                          <div key={venue.id} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                            {/* Venue row */}
+                            <div className="flex items-center gap-3 px-4 py-3">
+                              {vAccess && venue.menus.length > 0 ? (
+                                <button
+                                  onClick={() => setExpandedVenues((p) => { const n = new Set(p); if (n.has(venue.id)) n.delete(venue.id); else n.add(venue.id); return n; })}
+                                  className="flex shrink-0 items-center text-neutral-400 hover:text-neutral-700"
+                                >
+                                  {isVenueExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                                </button>
+                              ) : (
+                                <div className="w-4 shrink-0" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-neutral-800">{venue.name}</p>
+                                <p className="text-xs text-neutral-400">{venue.menus.length} menu{venue.menus.length !== 1 ? "s" : ""}</p>
+                              </div>
+
+                              {vAccess ? (
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <PermToggles
+                                    permissions={vAccess.permissions}
+                                    onChange={(perms) => saveAccess("venue", venue.id, perms)}
+                                  />
+                                  <button
+                                    onClick={() => setRemoveTarget({ type: "venue", id: venue.id, name: venue.name })}
+                                    className="ml-1 rounded-lg p-1 text-neutral-300 hover:bg-red-50 hover:text-red-500"
+                                  >
+                                    <Trash2 className="size-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { toggleGrantForm(venueGrantKey); setExpandedVenues((p) => new Set([...p, venue.id])); }}
+                                  className="flex items-center gap-1 rounded-lg border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-500 hover:border-neutral-400 hover:text-neutral-900 transition"
+                                >
+                                  <Plus className="size-3" /> Grant
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Venue grant form */}
+                            {openGrantForms.has(venueGrantKey) && !vAccess && (
+                              <div className="border-t border-neutral-100 px-4 pb-3 pt-2.5">
+                                <GrantForm
+                                  label={venue.name}
+                                  onGrant={(perms) => saveAccess("venue", venue.id, perms)}
+                                  onCancel={() => toggleGrantForm(venueGrantKey)}
+                                />
+                              </div>
+                            )}
+
+                            {/* Menus — only show if venue access exists */}
+                            {isVenueExpanded && vAccess && venue.menus.length > 0 && (
+                              <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3">
+                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Menus</p>
+                                <div className="flex flex-col gap-1.5">
+                                  {venue.menus.map((menu) => {
+                                    const mAccess = menuAccess.find((a) => a.menu.id === menu.id);
+                                    const menuGrantKey = `menu:${menu.id}`;
+                                    return (
+                                      <div key={menu.id} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+                                        <div className="flex items-center gap-3 px-3.5 py-2.5">
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-neutral-800">{menu.name}</p>
+                                          </div>
+                                          {mAccess ? (
+                                            <div className="flex shrink-0 items-center gap-2">
+                                              <PermToggles
+                                                permissions={mAccess.permissions}
+                                                onChange={(perms) => saveAccess("menu", menu.id, perms)}
+                                              />
+                                              <button
+                                                onClick={() => setRemoveTarget({ type: "menu", id: menu.id, name: menu.name })}
+                                                className="ml-1 rounded p-1 text-neutral-300 hover:bg-red-50 hover:text-red-500"
+                                              >
+                                                <Trash2 className="size-3" />
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              onClick={() => toggleGrantForm(menuGrantKey)}
+                                              className="flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-0.5 text-xs font-medium text-neutral-400 hover:border-neutral-400 hover:text-neutral-900 transition"
+                                            >
+                                              <Plus className="size-3" /> Grant
+                                            </button>
+                                          )}
+                                        </div>
+                                        {openGrantForms.has(menuGrantKey) && !mAccess && (
+                                          <div className="border-t border-neutral-100 px-3.5 pb-3 pt-2">
+                                            <GrantForm
+                                              label={menu.name}
+                                              onGrant={(perms) => saveAccess("menu", menu.id, perms)}
+                                              onCancel={() => toggleGrantForm(menuGrantKey)}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Locked state: property has no access, venues are hidden */}
+                {isPropExpanded && !pAccess && (
+                  <div className="border-t border-neutral-100 bg-neutral-50 px-5 py-4">
+                    <div className="flex items-center gap-2 text-xs text-neutral-400">
+                      <Lock className="size-3.5" />
+                      Grant property access above to unlock venue-level access
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
           })}
-          existingIds={menuAccess.map((r) => r.menu.id)}
-          onPermissionChange={(row, perms) =>
-            saveAccess("menu", row.menu.id, perms)
-          }
-          onRemove={(row) =>
-            setRemoveTarget({ type: "menu", id: row.menu.id, name: row.menu.name })
-          }
-          onAdd={(targetId, perms) => saveAccess("menu", targetId, perms)}
-        />
-      </div>
+
+          {properties.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-neutral-300 py-12 text-center text-sm text-neutral-400">
+              No properties found. Create a property first.
+            </div>
+          )}
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!removeTarget}
@@ -470,7 +441,7 @@ export default function UserAccessPage() {
         title="Remove access?"
         description={`Access to "${removeTarget?.name}" will be revoked. The user will no longer be able to perform actions on this ${removeTarget?.type}.`}
         confirmLabel="Remove"
-        onConfirm={handleRemoveAccess}
+        onConfirm={handleRemove}
         loading={removing}
       />
     </div>

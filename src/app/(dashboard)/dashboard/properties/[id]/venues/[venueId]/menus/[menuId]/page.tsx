@@ -6,7 +6,6 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   ArrowLeft, Plus, Pencil, Trash2, ChevronDown, ChevronRight,
-  Tag, Layers, Package2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,8 +14,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { type MeData, isAdmin, canOnMenu, canOnVenue, canOnProperty } from "@/lib/permissions";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Allergen { id: string; name: string; icon: string | null; }
 interface ItemVariant { id: string; name: string; price: string; isActive: boolean; }
@@ -36,40 +33,31 @@ interface Category {
 }
 interface MenuData {
   id: string; name: string; description: string | null; isActive: boolean; venueId: string;
-  venue: {
-    id: string; name: string; propertyId: string;
-    property: { id: string; name: string; slug: string };
-  };
+  venue: { id: string; name: string; propertyId: string; property: { id: string; name: string; slug: string } };
   categories: Category[];
 }
-
 interface ItemFormData {
-  name: string;
-  description: string;
-  basePrice: number;
-  isActive: boolean;
+  name: string; description: string; basePrice: number; isActive: boolean;
   allergenIds: string[];
   variants: { id?: string; name: string; price: number; isActive: boolean }[];
 }
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-
 function PageSkeleton() {
   return (
-    <div className="max-w-3xl">
-      <div className="mb-4 h-8 w-32 animate-pulse rounded bg-muted" />
-      <div className="mb-8 rounded-xl border p-5">
-        <div className="h-6 w-48 animate-pulse rounded bg-muted" />
-        <div className="mt-2 h-4 w-64 animate-pulse rounded bg-muted" />
+    <div>
+      <div className="mb-6 h-8 w-32 animate-pulse rounded-lg bg-neutral-100" />
+      <div className="mb-8 rounded-2xl border border-neutral-200 p-6">
+        <div className="h-6 w-48 animate-pulse rounded-lg bg-neutral-100" />
+        <div className="mt-2 h-4 w-64 animate-pulse rounded-lg bg-neutral-100" />
       </div>
       {[...Array(2)].map((_, i) => (
-        <div key={i} className="mb-4 rounded-xl border">
-          <div className="border-b bg-muted/30 px-4 py-3">
-            <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+        <div key={i} className="mb-4 rounded-2xl border border-neutral-200">
+          <div className="border-b bg-neutral-50 px-5 py-3.5">
+            <div className="h-4 w-32 animate-pulse rounded-lg bg-neutral-100" />
           </div>
-          <div className="space-y-2 p-4">
-            <div className="h-4 w-48 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+          <div className="space-y-2 p-5">
+            <div className="h-4 w-48 animate-pulse rounded-lg bg-neutral-100" />
+            <div className="h-4 w-40 animate-pulse rounded-lg bg-neutral-100" />
           </div>
         </div>
       ))}
@@ -77,14 +65,8 @@ function PageSkeleton() {
   );
 }
 
-// ─── Simple Name/Description Dialog ──────────────────────────────────────────
-
-function SimpleDialog({
-  open, onOpenChange, title, initial, onSave,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  title: string;
+function SimpleDialog({ open, onOpenChange, title, initial, onSave }: {
+  open: boolean; onOpenChange: (v: boolean) => void; title: string;
   initial: { name: string; description: string } | null;
   onSave: (data: { name: string; description: string }) => Promise<void>;
 }) {
@@ -92,54 +74,33 @@ function SimpleDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      setForm(initial ?? { name: "", description: "" });
-      setError(null);
-    }
-  }, [open, initial]);
+  useEffect(() => { if (open) { setForm(initial ?? { name: "", description: "" }); setError(null); } }, [open, initial]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
-    try {
-      await onSave(form);
-      onOpenChange(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSubmitting(false);
-    }
+    try { await onSave(form); onOpenChange(false); }
+    catch (err) { setError(err instanceof Error ? err.message : "Failed to save"); }
+    finally { setSubmitting(false); }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Name *</label>
-            <Input
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              required
-              autoFocus
-            />
+            <label className="text-sm font-medium text-neutral-700">Name *</label>
+            <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required autoFocus />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Description</label>
-            <Input
-              placeholder="Optional"
-              value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            />
+            <label className="text-sm font-medium text-neutral-700">Description</label>
+            <Input placeholder="Optional" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
           <DialogFooter>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting} className="bg-neutral-900 text-white hover:bg-neutral-700">
               {submitting ? "Saving…" : initial ? "Save Changes" : "Create"}
             </Button>
           </DialogFooter>
@@ -149,18 +110,11 @@ function SimpleDialog({
   );
 }
 
-// ─── Item Dialog ──────────────────────────────────────────────────────────────
-
 type VariantDraft = { id?: string; name: string; price: string; isActive: boolean };
 
-function ItemDialog({
-  open, onOpenChange, title, initial, allergens, onSave,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  title: string;
-  initial: Item | null;
-  allergens: Allergen[];
+function ItemDialog({ open, onOpenChange, title, initial, allergens, onSave }: {
+  open: boolean; onOpenChange: (v: boolean) => void; title: string;
+  initial: Item | null; allergens: Allergen[];
   onSave: (data: ItemFormData) => Promise<void>;
 }) {
   const [form, setForm] = useState({ name: "", description: "", basePrice: "", isActive: true });
@@ -172,39 +126,16 @@ function ItemDialog({
   useEffect(() => {
     if (open) {
       if (initial) {
-        setForm({
-          name: initial.name,
-          description: initial.description ?? "",
-          basePrice: initial.basePrice,
-          isActive: initial.isActive,
-        });
-        setVariants(
-          initial.variants.map((v) => ({ id: v.id, name: v.name, price: String(v.price), isActive: v.isActive }))
-        );
+        setForm({ name: initial.name, description: initial.description ?? "", basePrice: initial.basePrice, isActive: initial.isActive });
+        setVariants(initial.variants.map((v) => ({ id: v.id, name: v.name, price: String(v.price), isActive: v.isActive })));
         setSelectedAllergenIds(initial.itemAllergens.map((ia) => ia.allergen.id));
       } else {
         setForm({ name: "", description: "", basePrice: "", isActive: true });
-        setVariants([]);
-        setSelectedAllergenIds([]);
+        setVariants([]); setSelectedAllergenIds([]);
       }
       setError(null);
     }
   }, [open, initial]);
-
-  function addVariant() {
-    setVariants((prev) => [...prev, { name: "", price: "", isActive: true }]);
-  }
-  function removeVariant(i: number) {
-    setVariants((prev) => prev.filter((_, idx) => idx !== i));
-  }
-  function updateVariant(i: number, field: keyof VariantDraft, value: string | boolean) {
-    setVariants((prev) => prev.map((v, idx) => (idx === i ? { ...v, [field]: value } : v)));
-  }
-  function toggleAllergen(allergenId: string) {
-    setSelectedAllergenIds((prev) =>
-      prev.includes(allergenId) ? prev.filter((id) => id !== allergenId) : [...prev, allergenId]
-    );
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -218,17 +149,9 @@ function ItemDialog({
     setError(null);
     try {
       await onSave({
-        name: form.name,
-        description: form.description,
-        basePrice: price,
-        isActive: form.isActive,
+        name: form.name, description: form.description, basePrice: price, isActive: form.isActive,
         allergenIds: selectedAllergenIds,
-        variants: variants.map((v) => ({
-          ...(v.id ? { id: v.id } : {}),
-          name: v.name,
-          price: parseFloat(v.price),
-          isActive: v.isActive,
-        })),
+        variants: variants.map((v) => ({ ...(v.id ? { id: v.id } : {}), name: v.name, price: parseFloat(v.price), isActive: v.isActive })),
       });
       onOpenChange(false);
     } catch (err) {
@@ -241,124 +164,68 @@ function ItemDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Name *</label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                required
-                autoFocus
-              />
+              <label className="text-sm font-medium text-neutral-700">Item name *</label>
+              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required autoFocus placeholder="e.g. Grilled Salmon" />
             </div>
             <div className="flex gap-3">
               <div className="flex flex-1 flex-col gap-1.5">
-                <label className="text-sm font-medium">Base Price *</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={form.basePrice}
-                  onChange={(e) => setForm((f) => ({ ...f, basePrice: e.target.value }))}
-                  required
-                />
+                <label className="text-sm font-medium text-neutral-700">Base price *</label>
+                <Input type="number" step="0.01" min="0" placeholder="0.00" value={form.basePrice} onChange={(e) => setForm((f) => ({ ...f, basePrice: e.target.value }))} required />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Active</label>
-                <label className="flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={form.isActive}
-                    onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
-                    className="size-4 rounded"
-                  />
+                <label className="text-sm font-medium text-neutral-700">Active?</label>
+                <label className="flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-neutral-200 px-3 text-sm">
+                  <input type="checkbox" checked={form.isActive} onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))} className="size-4 rounded" />
                   {form.isActive ? "Yes" : "No"}
                 </label>
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Description</label>
-              <Input
-                placeholder="Optional"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
+              <label className="text-sm font-medium text-neutral-700">Description</label>
+              <Input placeholder="Optional — shown to guests" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
             </div>
           </div>
 
           {/* Variants */}
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-sm font-medium">Variants</label>
-              <button
-                type="button"
-                onClick={addVariant}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <Plus className="size-3" /> Add variant
+          <div className="rounded-xl border border-neutral-200 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-semibold text-neutral-700">Variants</span>
+              <button type="button" onClick={() => setVariants((p) => [...p, { name: "", price: "", isActive: true }])} className="flex items-center gap-1 text-xs font-medium text-neutral-500 hover:text-neutral-900">
+                <Plus className="size-3.5" /> Add variant
               </button>
             </div>
             {variants.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {variants.map((v, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <Input
-                      placeholder="Name (e.g. Small)"
-                      value={v.name}
-                      onChange={(e) => updateVariant(i, "name", e.target.value)}
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Price"
-                      value={v.price}
-                      onChange={(e) => updateVariant(i, "price", e.target.value)}
-                      className="w-24"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeVariant(i)}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
+                    <Input placeholder="e.g. Small" value={v.name} onChange={(e) => setVariants((p) => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} className="flex-1" />
+                    <Input type="number" step="0.01" min="0" placeholder="Price" value={v.price} onChange={(e) => setVariants((p) => p.map((x, j) => j === i ? { ...x, price: e.target.value } : x))} className="w-24" />
+                    <button type="button" onClick={() => setVariants((p) => p.filter((_, j) => j !== i))} className="text-neutral-400 hover:text-red-500">
                       <Trash2 className="size-4" />
                     </button>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">No variants — base price only.</p>
+              <p className="text-xs text-neutral-400">No variants — guests see the base price only.</p>
             )}
           </div>
 
           {/* Allergens */}
           {allergens.length > 0 && (
             <div>
-              <label className="mb-2 block text-sm font-medium">Allergens</label>
+              <label className="mb-2 block text-sm font-semibold text-neutral-700">Allergens</label>
               <div className="flex flex-wrap gap-2">
                 {allergens.map((a) => {
                   const checked = selectedAllergenIds.includes(a.id);
                   return (
-                    <label
-                      key={a.id}
-                      className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
-                        checked ? "border-foreground bg-foreground text-background" : "hover:bg-muted"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleAllergen(a.id)}
-                        className="sr-only"
-                      />
-                      {a.icon && <span>{a.icon}</span>}
-                      {a.name}
+                    <label key={a.id} className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${checked ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-500 hover:border-neutral-400"}`}>
+                      <input type="checkbox" checked={checked} onChange={() => setSelectedAllergenIds((p) => p.includes(a.id) ? p.filter((x) => x !== a.id) : [...p, a.id])} className="sr-only" />
+                      {a.icon && <span>{a.icon}</span>}{a.name}
                     </label>
                   );
                 })}
@@ -366,10 +233,10 @@ function ItemDialog({
             </div>
           )}
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
           <DialogFooter>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Saving…" : initial ? "Save Changes" : "Create Item"}
+            <Button type="submit" disabled={submitting} className="bg-neutral-900 text-white hover:bg-neutral-700">
+              {submitting ? "Saving…" : initial ? "Save Changes" : "Add Item"}
             </Button>
           </DialogFooter>
         </form>
@@ -378,25 +245,19 @@ function ItemDialog({
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function MenuBuilderPage() {
   const { id, venueId, menuId } = useParams<{ id: string; venueId: string; menuId: string }>();
-
   const [me, setMe] = useState<MeData | null>(null);
   const [menuData, setMenuData] = useState<MenuData | null>(null);
   const [allergens, setAllergens] = useState<Allergen[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-
   const [categoryDialog, setCategoryDialog] = useState<{ open: boolean; editing: Category | null }>({ open: false, editing: null });
   const [subDialog, setSubDialog] = useState<{ open: boolean; editing: SubCategory | null; categoryId: string }>({ open: false, editing: null, categoryId: "" });
   const [itemDialog, setItemDialog] = useState<{ open: boolean; editing: Item | null; subCategoryId: string }>({ open: false, editing: null, subCategoryId: "" });
-
   const [editingMenuInfo, setEditingMenuInfo] = useState(false);
   const [menuForm, setMenuForm] = useState({ name: "", description: "" });
   const [menuSaving, setMenuSaving] = useState(false);
-
   const [deleteTarget, setDeleteTarget] = useState<{ type: "category" | "subcategory" | "item"; id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -406,9 +267,7 @@ export default function MenuBuilderPage() {
       fetch(`/api/menus/${menuId}`, { cache: "no-store" }),
       fetch("/api/allergens", { cache: "no-store" }),
     ]);
-    const [meJson, menuJson, allergenJson] = await Promise.all([
-      meRes.json(), menuRes.json(), allergenRes.json(),
-    ]);
+    const [meJson, menuJson, allergenJson] = await Promise.all([meRes.json(), menuRes.json(), allergenRes.json()]);
     if (meJson.data) setMe(meJson.data);
     if (menuJson.data) {
       setMenuData(menuJson.data);
@@ -425,127 +284,64 @@ export default function MenuBuilderPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  function toggleCategory(catId: string) {
-    setExpandedCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(catId)) next.delete(catId); else next.add(catId);
-      return next;
-    });
-  }
-
   async function saveMenuInfo(e: React.FormEvent) {
     e.preventDefault();
     setMenuSaving(true);
-    const res = await fetch(`/api/menus/${menuId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(menuForm),
-    });
+    const res = await fetch(`/api/menus/${menuId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(menuForm) });
     const json = await res.json();
-    if (json.data) {
-      setMenuData((prev) => prev ? { ...prev, name: json.data.name, description: json.data.description } : prev);
-      setEditingMenuInfo(false);
-      toast.success("Menu updated");
-    } else {
-      toast.error("Failed to update menu");
-    }
+    if (json.data) { setMenuData((p) => p ? { ...p, name: json.data.name, description: json.data.description } : p); setEditingMenuInfo(false); toast.success("Menu updated"); }
+    else toast.error("Failed to update menu");
     setMenuSaving(false);
   }
 
   async function createCategory(data: { name: string; description: string }) {
-    const res = await fetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, menuId }),
-    });
+    const res = await fetch("/api/categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, menuId }) });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Failed to create category");
-    await fetchData();
-    toast.success(`"${json.data.name}" created`);
+    await fetchData(); toast.success(`"${json.data.name}" created`);
   }
-
   async function updateCategory(data: { name: string; description: string }) {
     if (!categoryDialog.editing) return;
-    const res = await fetch(`/api/categories/${categoryDialog.editing.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const res = await fetch(`/api/categories/${categoryDialog.editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Failed to update category");
-    await fetchData();
-    toast.success(`"${json.data.name}" updated`);
+    await fetchData(); toast.success(`"${json.data.name}" updated`);
   }
-
   async function createSubCategory(data: { name: string; description: string }) {
-    const res = await fetch("/api/subcategories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, categoryId: subDialog.categoryId }),
-    });
+    const res = await fetch("/api/subcategories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, categoryId: subDialog.categoryId }) });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Failed to create sub-category");
-    await fetchData();
-    toast.success(`"${json.data.name}" created`);
+    await fetchData(); toast.success(`"${json.data.name}" created`);
   }
-
   async function updateSubCategory(data: { name: string; description: string }) {
     if (!subDialog.editing) return;
-    const res = await fetch(`/api/subcategories/${subDialog.editing.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const res = await fetch(`/api/subcategories/${subDialog.editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Failed to update sub-category");
-    await fetchData();
-    toast.success(`"${json.data.name}" updated`);
+    await fetchData(); toast.success(`"${json.data.name}" updated`);
   }
-
   async function createItem(data: ItemFormData) {
-    const res = await fetch("/api/items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, subCategoryId: itemDialog.subCategoryId }),
-    });
+    const res = await fetch("/api/items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, subCategoryId: itemDialog.subCategoryId }) });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Failed to create item");
-    await fetchData();
-    toast.success(`"${json.data.name}" created`);
+    await fetchData(); toast.success(`"${json.data.name}" added`);
   }
-
   async function updateItem(data: ItemFormData) {
     if (!itemDialog.editing) return;
-    const res = await fetch(`/api/items/${itemDialog.editing.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const res = await fetch(`/api/items/${itemDialog.editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Failed to update item");
-    await fetchData();
-    toast.success(`"${json.data.name}" updated`);
+    await fetchData(); toast.success(`"${json.data.name}" updated`);
   }
-
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const url =
-        deleteTarget.type === "category" ? `/api/categories/${deleteTarget.id}` :
-        deleteTarget.type === "subcategory" ? `/api/subcategories/${deleteTarget.id}` :
-        `/api/items/${deleteTarget.id}`;
+      const url = deleteTarget.type === "category" ? `/api/categories/${deleteTarget.id}` : deleteTarget.type === "subcategory" ? `/api/subcategories/${deleteTarget.id}` : `/api/items/${deleteTarget.id}`;
       const res = await fetch(url, { method: "DELETE" });
-      if (res.ok) {
-        await fetchData();
-        toast.success(`"${deleteTarget.name}" deleted`);
-      } else {
-        toast.error(`Failed to delete ${deleteTarget.type}`);
-      }
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
+      if (res.ok) { await fetchData(); toast.success(`"${deleteTarget.name}" deleted`); }
+      else toast.error(`Failed to delete ${deleteTarget.type}`);
+    } finally { setDeleting(false); setDeleteTarget(null); }
   }
 
   if (loading) return <PageSkeleton />;
@@ -553,7 +349,7 @@ export default function MenuBuilderPage() {
   if (!menuData) {
     return (
       <div className="py-20 text-center">
-        <p className="text-sm text-destructive">Menu not found.</p>
+        <p className="text-sm text-red-600">Menu not found.</p>
         <Button variant="ghost" size="sm" render={<Link href={`/dashboard/properties/${id}/venues/${venueId}`} />} className="mt-4">
           <ArrowLeft className="size-4" /> Back
         </Button>
@@ -565,49 +361,49 @@ export default function MenuBuilderPage() {
   const canEdit = me ? (isAdmin(me.role) || canOnMenu(me, "EDIT", menuId) || canOnVenue(me, "EDIT", venueId) || canOnProperty(me, "EDIT", id)) : false;
   const canDelete = me ? isAdmin(me.role) : false;
 
+  const totalItems = menuData.categories.reduce((sum, cat) => sum + cat.subCategories.reduce((s, sub) => s + sub.items.length, 0), 0);
+
   return (
-    <div className="max-w-3xl">
-      <Button variant="ghost" size="sm" render={<Link href={`/dashboard/properties/${id}/venues/${venueId}`} />} className="-ml-2 mb-6">
+    <div>
+      {/* Back */}
+      <Button variant="ghost" size="sm" render={<Link href={`/dashboard/properties/${id}/venues/${venueId}`} />} className="-ml-2 mb-6 text-neutral-500 hover:text-neutral-900">
         <ArrowLeft className="size-4" /> {menuData.venue.name}
       </Button>
 
       {/* Menu header */}
-      <div className="mb-8 rounded-xl border p-5">
+      <div className="mb-8 rounded-2xl border border-neutral-200 bg-white p-6">
         {editingMenuInfo ? (
           <form onSubmit={saveMenuInfo} className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium text-neutral-700">Menu name</label>
               <Input value={menuForm.name} onChange={(e) => setMenuForm((f) => ({ ...f, name: e.target.value }))} required autoFocus />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium text-neutral-700">Description</label>
               <Input placeholder="Optional" value={menuForm.description} onChange={(e) => setMenuForm((f) => ({ ...f, description: e.target.value }))} />
             </div>
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={menuSaving}>{menuSaving ? "Saving…" : "Save"}</Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => {
-                setEditingMenuInfo(false);
-                setMenuForm({ name: menuData.name, description: menuData.description ?? "" });
-              }}>Cancel</Button>
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" size="sm" disabled={menuSaving} className="bg-neutral-900 text-white hover:bg-neutral-700">{menuSaving ? "Saving…" : "Save"}</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingMenuInfo(false); setMenuForm({ name: menuData.name, description: menuData.description ?? "" }); }}>Cancel</Button>
             </div>
           </form>
         ) : (
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-semibold">{menuData.name}</h1>
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${menuData.isActive ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl font-bold text-neutral-900">{menuData.name}</h1>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${menuData.isActive ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-neutral-500"}`}>
                   {menuData.isActive ? "Active" : "Inactive"}
                 </span>
               </div>
-              {menuData.description && <p className="mt-1 text-sm text-muted-foreground">{menuData.description}</p>}
-              <p className="mt-1 text-xs text-muted-foreground">
-                {menuData.venue.property.name} / {menuData.venue.name}
+              {menuData.description && <p className="mt-1.5 text-sm text-neutral-500">{menuData.description}</p>}
+              <p className="mt-2 text-xs text-neutral-400">
+                {menuData.venue.property.name} / {menuData.venue.name} · {menuData.categories.length} categories · {totalItems} items
               </p>
             </div>
             {canEdit && (
-              <Button variant="outline" size="sm" onClick={() => setEditingMenuInfo(true)}>
-                <Pencil className="size-3.5" /> Edit
+              <Button variant="outline" size="sm" onClick={() => setEditingMenuInfo(true)} className="shrink-0">
+                <Pencil className="size-3.5" /> Edit Details
               </Button>
             )}
           </div>
@@ -615,26 +411,26 @@ export default function MenuBuilderPage() {
       </div>
 
       {/* Categories header */}
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">
-          Categories
-          <span className="ml-2 text-sm font-normal text-muted-foreground">({menuData.categories.length})</span>
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-lg font-bold text-neutral-900">
+          Menu Structure
+          <span className="ml-2 text-sm font-normal text-neutral-400">({menuData.categories.length} categories)</span>
         </h2>
         {canAdd && (
-          <Button size="sm" onClick={() => setCategoryDialog({ open: true, editing: null })}>
-            <Plus /> Add Category
+          <Button size="sm" onClick={() => setCategoryDialog({ open: true, editing: null })} className="h-9 gap-1.5 bg-neutral-900 px-4 text-white hover:bg-neutral-700">
+            <Plus className="size-4" /> Add Category
           </Button>
         )}
       </div>
 
       {/* Empty state */}
       {menuData.categories.length === 0 ? (
-        <div className="rounded-lg border border-dashed py-14 text-center">
-          <Tag className="mx-auto mb-3 size-8 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-muted-foreground">No categories yet</p>
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 py-20">
+          <p className="text-sm font-medium text-neutral-500">No categories yet</p>
+          <p className="mt-1 text-xs text-neutral-400">Categories group your menu sections (e.g. Starters, Mains, Desserts)</p>
           {canAdd && (
-            <Button size="sm" className="mt-4" onClick={() => setCategoryDialog({ open: true, editing: null })}>
-              <Plus /> Add your first category
+            <Button size="sm" className="mt-5 bg-neutral-900 text-white hover:bg-neutral-700" onClick={() => setCategoryDialog({ open: true, editing: null })}>
+              <Plus className="size-4" /> Add first category
             </Button>
           )}
         </div>
@@ -642,182 +438,120 @@ export default function MenuBuilderPage() {
         <div className="flex flex-col gap-4">
           {menuData.categories.map((cat) => {
             const isExpanded = expandedCategories.has(cat.id);
+            const totalCatItems = cat.subCategories.reduce((s, sub) => s + sub.items.length, 0);
             return (
-              <div key={cat.id} className="overflow-hidden rounded-xl border">
+              <div key={cat.id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
                 {/* Category header */}
-                <div className="flex items-center justify-between bg-muted/40 px-4 py-3">
-                  <button
-                    onClick={() => toggleCategory(cat.id)}
-                    className="flex flex-1 items-center gap-2 text-left"
-                  >
-                    {isExpanded
-                      ? <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-                      : <ChevronRight className="size-4 shrink-0 text-muted-foreground" />}
-                    <span className="font-medium">{cat.name}</span>
-                    {!cat.isActive && (
-                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Inactive</span>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {cat.subCategories.length} sub-categor{cat.subCategories.length !== 1 ? "ies" : "y"}
-                    </span>
+                <div className="flex items-center justify-between bg-neutral-50 px-5 py-3.5">
+                  <button onClick={() => setExpandedCategories((p) => { const n = new Set(p); if (n.has(cat.id)) n.delete(cat.id); else n.add(cat.id); return n; })} className="flex flex-1 items-center gap-2.5 text-left">
+                    {isExpanded ? <ChevronDown className="size-4 text-neutral-400" /> : <ChevronRight className="size-4 text-neutral-400" />}
+                    <span className="font-semibold text-neutral-900">{cat.name}</span>
+                    {!cat.isActive && <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-xs text-neutral-500">Inactive</span>}
+                    <span className="text-xs text-neutral-400">{cat.subCategories.length} section{cat.subCategories.length !== 1 ? "s" : ""} · {totalCatItems} item{totalCatItems !== 1 ? "s" : ""}</span>
                   </button>
                   <div className="flex items-center gap-1">
                     {canEdit && (
                       <Button variant="ghost" size="icon-sm" onClick={() => setCategoryDialog({ open: true, editing: cat })}>
-                        <Pencil className="size-3.5" />
-                        <span className="sr-only">Edit</span>
+                        <Pencil className="size-3.5" /><span className="sr-only">Edit</span>
                       </Button>
                     )}
                     {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => setDeleteTarget({ type: "category", id: cat.id, name: cat.name })}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="size-3.5" />
-                        <span className="sr-only">Delete</span>
+                      <Button variant="ghost" size="icon-sm" onClick={() => setDeleteTarget({ type: "category", id: cat.id, name: cat.name })} className="text-destructive hover:text-destructive">
+                        <Trash2 className="size-3.5" /><span className="sr-only">Delete</span>
                       </Button>
                     )}
                   </div>
                 </div>
 
-                {/* Expanded content */}
+                {/* Expanded */}
                 {isExpanded && (
-                  <div>
+                  <div className="p-5">
                     {cat.subCategories.length === 0 ? (
-                      <div className="px-4 py-6 text-center">
-                        <Package2 className="mx-auto mb-2 size-6 text-muted-foreground/30" />
-                        <p className="text-xs text-muted-foreground">No sub-categories yet</p>
+                      <div className="rounded-xl border border-dashed border-neutral-200 py-8 text-center">
+                        <p className="text-xs text-neutral-400">No sections yet</p>
                         {canAdd && (
-                          <button
-                            onClick={() => setSubDialog({ open: true, editing: null, categoryId: cat.id })}
-                            className="mx-auto mt-2 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          >
-                            <Plus className="size-3" /> Add sub-category
+                          <button onClick={() => setSubDialog({ open: true, editing: null, categoryId: cat.id })} className="mx-auto mt-2 flex items-center gap-1 text-xs font-medium text-neutral-500 hover:text-neutral-900">
+                            <Plus className="size-3.5" /> Add section
                           </button>
                         )}
                       </div>
                     ) : (
-                      <div className="divide-y">
+                      <div className="flex flex-col gap-4">
                         {cat.subCategories.map((sub) => (
-                          <div key={sub.id} className="px-4 py-3">
+                          <div key={sub.id} className="rounded-xl border border-neutral-100 bg-neutral-50">
                             {/* Sub-category header */}
-                            <div className="mb-2 flex items-center justify-between">
+                            <div className="flex items-center justify-between px-4 py-2.5">
                               <div className="flex items-center gap-2">
-                                <Layers className="size-3.5 shrink-0 text-muted-foreground" />
-                                <span className="text-sm font-medium">{sub.name}</span>
-                                {!sub.isActive && (
-                                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Inactive</span>
-                                )}
-                                <span className="text-xs text-muted-foreground">
-                                  {sub.items.length} item{sub.items.length !== 1 ? "s" : ""}
-                                </span>
+                                <span className="text-sm font-semibold text-neutral-800">{sub.name}</span>
+                                {!sub.isActive && <span className="rounded-full bg-neutral-200 px-1.5 py-0.5 text-xs text-neutral-500">Inactive</span>}
+                                <span className="text-xs text-neutral-400">{sub.items.length} item{sub.items.length !== 1 ? "s" : ""}</span>
                               </div>
                               <div className="flex items-center gap-1">
                                 {canEdit && (
                                   <Button variant="ghost" size="icon-sm" onClick={() => setSubDialog({ open: true, editing: sub, categoryId: cat.id })}>
-                                    <Pencil className="size-3.5" />
-                                    <span className="sr-only">Edit</span>
+                                    <Pencil className="size-3.5" /><span className="sr-only">Edit</span>
                                   </Button>
                                 )}
                                 {canDelete && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    onClick={() => setDeleteTarget({ type: "subcategory", id: sub.id, name: sub.name })}
-                                    className="text-destructive hover:text-destructive"
-                                  >
-                                    <Trash2 className="size-3.5" />
-                                    <span className="sr-only">Delete</span>
+                                  <Button variant="ghost" size="icon-sm" onClick={() => setDeleteTarget({ type: "subcategory", id: sub.id, name: sub.name })} className="text-destructive hover:text-destructive">
+                                    <Trash2 className="size-3.5" /><span className="sr-only">Delete</span>
                                   </Button>
                                 )}
                               </div>
                             </div>
 
                             {/* Items */}
-                            {sub.items.length > 0 && (
-                              <div className="mb-2 flex flex-col gap-1.5 pl-5">
-                                {sub.items.map((item) => (
-                                  <div
-                                    key={item.id}
-                                    className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 hover:bg-muted/20"
-                                  >
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium">{item.name}</span>
-                                        {!item.isActive && (
-                                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Inactive</span>
-                                        )}
+                            <div className="px-4 pb-3">
+                              {sub.items.length > 0 && (
+                                <div className="mb-2 flex flex-col gap-1.5">
+                                  {sub.items.map((item) => (
+                                    <div key={item.id} className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white px-3.5 py-2.5">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium text-neutral-900">{item.name}</span>
+                                          {!item.isActive && <span className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-400">Inactive</span>}
+                                        </div>
+                                        <div className="mt-0.5 flex items-center gap-2.5 text-xs text-neutral-400">
+                                          <span className="font-semibold text-neutral-600">${parseFloat(item.basePrice).toFixed(2)}</span>
+                                          {item.variants.length > 0 && <span>{item.variants.length} variant{item.variants.length !== 1 ? "s" : ""}</span>}
+                                          {item.itemAllergens.length > 0 && (
+                                            <span className="flex gap-0.5">
+                                              {item.itemAllergens.map((ia) => (
+                                                <span key={ia.allergen.id} title={ia.allergen.name}>{ia.allergen.icon ?? ia.allergen.name[0]}</span>
+                                              ))}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
-                                      <div className="mt-0.5 flex items-center gap-2">
-                                        <span className="text-xs font-medium text-muted-foreground">
-                                          ${parseFloat(item.basePrice).toFixed(2)}
-                                        </span>
-                                        {item.variants.length > 0 && (
-                                          <span className="text-xs text-muted-foreground">
-                                            {item.variants.length} variant{item.variants.length !== 1 ? "s" : ""}
-                                          </span>
+                                      <div className="flex shrink-0 items-center gap-1 pl-3">
+                                        {canEdit && (
+                                          <Button variant="ghost" size="icon-sm" onClick={() => setItemDialog({ open: true, editing: item, subCategoryId: sub.id })}>
+                                            <Pencil className="size-3.5" /><span className="sr-only">Edit</span>
+                                          </Button>
                                         )}
-                                        {item.itemAllergens.length > 0 && (
-                                          <span className="flex gap-0.5">
-                                            {item.itemAllergens.map((ia) => (
-                                              <span key={ia.allergen.id} title={ia.allergen.name} className="text-xs">
-                                                {ia.allergen.icon ?? ia.allergen.name[0]}
-                                              </span>
-                                            ))}
-                                          </span>
+                                        {canDelete && (
+                                          <Button variant="ghost" size="icon-sm" onClick={() => setDeleteTarget({ type: "item", id: item.id, name: item.name })} className="text-destructive hover:text-destructive">
+                                            <Trash2 className="size-3.5" /><span className="sr-only">Delete</span>
+                                          </Button>
                                         )}
                                       </div>
                                     </div>
-                                    <div className="flex shrink-0 items-center gap-1 pl-2">
-                                      {canEdit && (
-                                        <Button
-                                          variant="ghost"
-                                          size="icon-sm"
-                                          onClick={() => setItemDialog({ open: true, editing: item, subCategoryId: sub.id })}
-                                        >
-                                          <Pencil className="size-3.5" />
-                                          <span className="sr-only">Edit</span>
-                                        </Button>
-                                      )}
-                                      {canDelete && (
-                                        <Button
-                                          variant="ghost"
-                                          size="icon-sm"
-                                          onClick={() => setDeleteTarget({ type: "item", id: item.id, name: item.name })}
-                                          className="text-destructive hover:text-destructive"
-                                        >
-                                          <Trash2 className="size-3.5" />
-                                          <span className="sr-only">Delete</span>
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {canAdd && (
-                              <button
-                                onClick={() => setItemDialog({ open: true, editing: null, subCategoryId: sub.id })}
-                                className="ml-5 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              >
-                                <Plus className="size-3" /> Add item
-                              </button>
-                            )}
+                                  ))}
+                                </div>
+                              )}
+                              {canAdd && (
+                                <button onClick={() => setItemDialog({ open: true, editing: null, subCategoryId: sub.id })} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-900">
+                                  <Plus className="size-3.5" /> Add item to this section
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ))}
 
                         {canAdd && (
-                          <div className="px-4 py-2">
-                            <button
-                              onClick={() => setSubDialog({ open: true, editing: null, categoryId: cat.id })}
-                              className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            >
-                              <Plus className="size-3" /> Add sub-category
-                            </button>
-                          </div>
+                          <button onClick={() => setSubDialog({ open: true, editing: null, categoryId: cat.id })} className="flex items-center gap-1.5 rounded-xl border border-dashed border-neutral-200 px-4 py-2.5 text-xs font-medium text-neutral-400 transition hover:border-neutral-400 hover:text-neutral-900">
+                            <Plus className="size-3.5" /> Add new section to {cat.name}
+                          </button>
                         )}
                       </div>
                     )}
@@ -836,15 +570,13 @@ export default function MenuBuilderPage() {
         initial={categoryDialog.editing ? { name: categoryDialog.editing.name, description: categoryDialog.editing.description ?? "" } : null}
         onSave={categoryDialog.editing ? updateCategory : createCategory}
       />
-
       <SimpleDialog
         open={subDialog.open}
         onOpenChange={(v) => setSubDialog((s) => ({ ...s, open: v }))}
-        title={subDialog.editing ? "Edit Sub-Category" : "Add Sub-Category"}
+        title={subDialog.editing ? "Edit Section" : "Add Section"}
         initial={subDialog.editing ? { name: subDialog.editing.name, description: subDialog.editing.description ?? "" } : null}
         onSave={subDialog.editing ? updateSubCategory : createSubCategory}
       />
-
       <ItemDialog
         open={itemDialog.open}
         onOpenChange={(v) => setItemDialog((s) => ({ ...s, open: v }))}
@@ -853,7 +585,6 @@ export default function MenuBuilderPage() {
         allergens={allergens}
         onSave={itemDialog.editing ? updateItem : createItem}
       />
-
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
