@@ -36,14 +36,14 @@ function cardColor(name: string) {
 
 function GridSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {[...Array(3)].map((_, i) => (
-        <div key={i} className="overflow-hidden rounded-2xl border border-neutral-200">
-          <div className="h-32 animate-pulse bg-neutral-100" />
-          <div className="p-5">
-            <div className="h-5 w-36 animate-pulse rounded-lg bg-neutral-100" />
-            <div className="mt-2 h-3 w-48 animate-pulse rounded-lg bg-neutral-100" />
-            <div className="mt-4 h-3 w-24 animate-pulse rounded-lg bg-neutral-100" />
+        <div key={i} className="overflow-hidden rounded-xl border border-neutral-200">
+          <div className="h-24 animate-pulse bg-neutral-100" />
+          <div className="p-4">
+            <div className="h-4 w-36 animate-pulse rounded bg-neutral-100" />
+            <div className="mt-2 h-3 w-48 animate-pulse rounded bg-neutral-100" />
+            <div className="mt-3 h-3 w-24 animate-pulse rounded bg-neutral-100" />
           </div>
         </div>
       ))}
@@ -162,11 +162,10 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Page header */}
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Restaurant CMS</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-neutral-900">Properties</h1>
-          <p className="mt-1.5 text-sm text-neutral-500">
+          <h1 className="text-xl font-semibold text-neutral-900">Properties</h1>
+          <p className="mt-0.5 text-sm text-neutral-500">
             {loading ? "Loading…" : `${properties.length} propert${properties.length !== 1 ? "ies" : "y"}`}
           </p>
         </div>
@@ -174,7 +173,7 @@ export default function DashboardPage() {
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setName(""); setDescription(""); setError(null); } }}>
             <DialogTrigger
               render={
-                <Button size="sm" className="h-10 gap-2 bg-neutral-900 px-5 text-white hover:bg-neutral-700">
+                <Button size="sm" className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
                   <Plus className="size-4" /> New Property
                 </Button>
               }
@@ -204,7 +203,7 @@ export default function DashboardPage() {
                 </div>
                 {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
                 <DialogFooter>
-                  <Button type="submit" disabled={submitting} className="bg-neutral-900 text-white hover:bg-neutral-700">
+                  <Button type="submit" disabled={submitting} className="h-8 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
                     {submitting ? "Creating…" : "Create Property"}
                   </Button>
                 </DialogFooter>
@@ -218,25 +217,25 @@ export default function DashboardPage() {
       {loading ? (
         <GridSkeleton />
       ) : properties.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 py-28">
-          <div className="flex size-16 items-center justify-center rounded-2xl bg-neutral-200">
-            <Building2 className="size-8 text-neutral-500" />
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50/50 py-20">
+          <div className="flex size-12 items-center justify-center rounded-xl bg-neutral-100">
+            <Building2 className="size-6 text-neutral-400" />
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-neutral-900">No properties yet</h3>
-          <p className="mt-1.5 max-w-xs text-center text-sm text-neutral-500">
+          <h3 className="mt-4 text-sm font-semibold text-neutral-900">No properties yet</h3>
+          <p className="mt-1 max-w-xs text-center text-sm text-neutral-400">
             Properties represent your restaurant brands or hotel groups. Create one to get started.
           </p>
           {canCreate && (
             <Button
               onClick={() => setOpen(true)}
-              className="mt-6 h-10 gap-2 bg-neutral-900 px-5 text-white hover:bg-neutral-700"
+              className="mt-5 h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800"
             >
-              <Plus className="size-4" /> Create your first property
+              <Plus className="size-3.5" /> Create your first property
             </Button>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {properties.map((p) => {
             const color = cardColor(p.name);
             const initial = p.name[0]?.toUpperCase() ?? "P";
@@ -246,83 +245,83 @@ export default function DashboardPage() {
               <div
                 key={p.id}
                 onClick={() => router.push(`/dashboard/properties/${p.id}`)}
-                className="group cursor-pointer overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:border-neutral-400 hover:shadow-md"
+                className="group cursor-pointer overflow-hidden rounded-xl border border-neutral-200/80 bg-white transition-colors duration-150 hover:border-neutral-300"
               >
                 {/* Image / Banner */}
-                <div className={`relative flex h-32 items-center justify-center overflow-hidden ${color}`}>
+                <div className={`relative flex h-24 items-center justify-center overflow-hidden ${color}`}>
                   {p.logo ? (
                     <img src={p.logo} alt={p.name} className="h-full w-full object-cover" />
                   ) : (
-                    <span className="text-5xl font-bold text-white/70 select-none">{initial}</span>
+                    <span className="text-4xl font-bold text-white/60 select-none">{initial}</span>
                   )}
                   {/* Image upload overlay */}
                   {canEdit && (
                     <div
-                      className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 transition-colors group-hover:bg-black/25"
+                      className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 transition-colors group-hover:bg-black/20"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
                         onClick={() => { pendingUploadIdRef.current = p.id; imageInputRef.current?.click(); }}
                         disabled={uploadingId === p.id}
-                        className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-neutral-700 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100 disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-neutral-700 opacity-0 transition-opacity hover:bg-white group-hover:opacity-100 disabled:opacity-50"
                       >
-                        <Camera className="size-3.5" />
-                        {uploadingId === p.id ? "Uploading…" : p.logo ? "Change Image" : "Add Image"}
+                        <Camera className="size-3" />
+                        {uploadingId === p.id ? "Uploading…" : p.logo ? "Change" : "Add Image"}
                       </button>
                       {p.logo && (
                         <button
                           onClick={() => handleRemoveLogo(p.id)}
-                          className="rounded-lg bg-white/90 p-1.5 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100"
+                          className="rounded-md bg-white/90 p-1 opacity-0 transition-opacity hover:bg-white group-hover:opacity-100"
                         >
-                          <Trash2 className="size-3.5 text-red-500" />
+                          <Trash2 className="size-3 text-red-500" />
                         </button>
                       )}
                     </div>
                   )}
                   {/* Edit/Delete buttons */}
                   <div
-                    className="absolute right-2.5 top-2.5 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100"
+                    className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {canEdit && (
                       <button
                         onClick={() => router.push(`/dashboard/properties/${p.id}`)}
-                        className="flex items-center justify-center rounded-lg bg-white/90 p-1.5 shadow hover:bg-white"
+                        className="flex items-center justify-center rounded-md bg-white/90 p-1 hover:bg-white"
                         title="Edit property"
                       >
-                        <Pencil className="size-3.5 text-neutral-600" />
+                        <Pencil className="size-3 text-neutral-600" />
                       </button>
                     )}
                     {canDelete && (
                       <button
                         onClick={() => setDeleteTarget(p)}
-                        className="flex items-center justify-center rounded-lg bg-white/90 p-1.5 shadow hover:bg-white"
+                        className="flex items-center justify-center rounded-md bg-white/90 p-1 hover:bg-white"
                         title="Delete property"
                       >
-                        <Trash2 className="size-3.5 text-red-500" />
+                        <Trash2 className="size-3 text-red-500" />
                       </button>
                     )}
                   </div>
                   {/* Status badge */}
-                  <div className="absolute bottom-2.5 left-2.5">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${p.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
+                  <div className="absolute bottom-2 left-2">
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${p.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
                       {p.isActive ? "Active" : "Inactive"}
                     </span>
                   </div>
                 </div>
 
                 {/* Card body */}
-                <div className="p-5">
-                  <h3 className="text-base font-semibold text-neutral-900">{p.name}</h3>
+                <div className="p-4">
+                  <h3 className="text-sm font-semibold text-neutral-900">{p.name}</h3>
                   {p.description && (
-                    <p className="mt-1 line-clamp-2 text-sm text-neutral-500">{p.description}</p>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-neutral-400">{p.description}</p>
                   )}
-                  <div className="mt-4 flex items-center gap-4 text-xs text-neutral-400">
-                    <span className="flex items-center gap-1.5">
-                      <MapPin className="size-3.5" />
+                  <div className="mt-3 flex items-center gap-3 text-xs text-neutral-400">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="size-3" />
                       {p._count.venues} venue{p._count.venues !== 1 ? "s" : ""}
                     </span>
-                    <span className="font-mono">{p.slug}</span>
+                    <span className="font-mono text-[11px]">{p.slug}</span>
                   </div>
                 </div>
               </div>

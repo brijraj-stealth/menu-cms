@@ -14,7 +14,7 @@ export default async function DashboardLayout({
     <div className="flex min-h-screen">
       <Sidebar user={{ ...session.user, role: session.user.role }} />
       <main className="flex-1 overflow-auto bg-white">
-        <div className="mx-auto max-w-7xl p-6">{children}</div>
+        <div className="mx-auto max-w-6xl px-8 py-8">{children}</div>
       </main>
     </div>
   );

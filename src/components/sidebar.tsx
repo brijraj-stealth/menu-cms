@@ -36,17 +36,19 @@ export function Sidebar({ user }: SidebarProps) {
     : navItems;
 
   return (
-    <aside className="flex w-65 shrink-0 flex-col bg-slate-900 text-white">
+    <aside className="flex w-56 shrink-0 flex-col border-r border-neutral-200/80 bg-[#FAFAFA]">
       {/* Brand */}
-      <div className="flex items-center gap-2.5 border-b border-white/10 px-5 py-4">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-white/10">
-          <UtensilsCrossed className="size-4" />
+      <div className="flex h-12 items-center gap-2 px-4">
+        <div className="flex size-6 items-center justify-center rounded-md bg-neutral-900">
+          <UtensilsCrossed className="size-3.5 text-white" />
         </div>
-        <span className="font-semibold tracking-tight">Menu CMS</span>
+        <span className="text-[13px] font-semibold tracking-tight text-neutral-800">
+          Menu CMS
+        </span>
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-col gap-0.5 p-3">
+      <nav className="flex flex-col gap-px px-2 py-1">
         {visibleItems.map(({ label, href, icon: Icon }) => {
           const isActive =
             href === "/dashboard"
@@ -58,13 +60,13 @@ export function Sidebar({ user }: SidebarProps) {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-100",
                 isActive
-                  ? "bg-white/15 text-white"
-                  : "text-white/60 hover:bg-white/10 hover:text-white"
+                  ? "bg-neutral-200/70 text-neutral-900"
+                  : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
               )}
             >
-              <Icon className="size-4 shrink-0" />
+              <Icon className="size-3.75 shrink-0" />
               {label}
             </Link>
           );
@@ -72,23 +74,27 @@ export function Sidebar({ user }: SidebarProps) {
       </nav>
 
       {/* User */}
-      <div className="mt-auto border-t border-white/10 p-3">
-        <div className="flex items-center gap-2.5 rounded-lg px-3 py-2">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-semibold uppercase">
+      <div className="mt-auto border-t border-neutral-200/80 px-2 py-2">
+        <div className="flex items-center gap-2 rounded-md px-2.5 py-1.5">
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-neutral-300 text-[10px] font-bold uppercase text-neutral-600 select-none">
             {user.name?.[0] ?? user.email?.[0] ?? "?"}
           </div>
           <div className="min-w-0 flex-1">
             {user.name && (
-              <p className="truncate text-sm font-medium">{user.name}</p>
+              <p className="truncate text-[12px] font-medium leading-tight text-neutral-700">
+                {user.name}
+              </p>
             )}
-            <p className="truncate text-xs text-white/50">{user.email}</p>
+            <p className="truncate text-[11px] leading-tight text-neutral-400">
+              {user.email}
+            </p>
           </div>
         </div>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+          className="mt-0.5 flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] text-neutral-400 transition-colors duration-100 hover:bg-neutral-100 hover:text-neutral-600"
         >
-          <LogOut className="size-4 shrink-0" />
+          <LogOut className="size-3.5 shrink-0" />
           Sign out
         </button>
       </div>

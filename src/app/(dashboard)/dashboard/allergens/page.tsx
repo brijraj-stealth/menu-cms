@@ -122,8 +122,8 @@ export default function AllergensPage() {
   return (
     <div className="max-w-2xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold">Allergens</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-xl font-semibold text-neutral-900">Allergens</h1>
+        <p className="mt-0.5 text-sm text-neutral-500">
           Global allergens that can be applied to any menu item.
           {!canManage && (
             <span className="ml-1 text-muted-foreground/70">(View only — contact an admin to make changes)</span>
@@ -139,7 +139,7 @@ export default function AllergensPage() {
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger
               render={
-                <Button size="sm" className="h-10 gap-2 bg-neutral-900 px-5 text-white hover:bg-neutral-700">
+                <Button size="sm" className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
                   <Plus className="size-4" /> Add Allergen
                 </Button>
               }
@@ -199,7 +199,7 @@ export default function AllergensPage() {
           <p className="text-sm font-medium text-muted-foreground">No allergens yet</p>
           {canManage && (
             <Button size="sm" onClick={openCreate}
-              className="mt-4 h-10 gap-2 bg-neutral-900 px-5 text-white hover:bg-neutral-700">
+              className="mt-4 h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
               <Plus className="size-4" /> Add your first allergen
             </Button>
           )}

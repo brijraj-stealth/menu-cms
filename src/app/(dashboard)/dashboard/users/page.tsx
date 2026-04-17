@@ -49,15 +49,15 @@ function GridSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="rounded-2xl border border-neutral-200 bg-white p-5">
-          <div className="flex items-center gap-4">
-            <div className="size-11 animate-pulse rounded-full bg-neutral-100" />
+        <div key={i} className="rounded-xl border border-neutral-200 bg-white p-4">
+          <div className="flex items-center gap-3">
+            <div className="size-9 animate-pulse rounded-full bg-neutral-100" />
             <div className="flex-1">
-              <div className="h-4 w-28 animate-pulse rounded-lg bg-neutral-100" />
-              <div className="mt-1.5 h-3 w-40 animate-pulse rounded-lg bg-neutral-100" />
+              <div className="h-3.5 w-28 animate-pulse rounded bg-neutral-100" />
+              <div className="mt-1.5 h-3 w-40 animate-pulse rounded bg-neutral-100" />
             </div>
           </div>
-          <div className="mt-4 h-3 w-24 animate-pulse rounded-lg bg-neutral-100" />
+          <div className="mt-3 h-3 w-24 animate-pulse rounded bg-neutral-100" />
         </div>
       ))}
     </div>
@@ -133,11 +133,10 @@ export default function UsersPage() {
   return (
     <div>
       {/* Page header */}
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Restaurant CMS</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-neutral-900">Users</h1>
-          <p className="mt-1.5 text-sm text-neutral-500">
+          <h1 className="text-xl font-semibold text-neutral-900">Users</h1>
+          <p className="mt-0.5 text-sm text-neutral-500">
             {loading ? "Loading…" : `${users.length} user${users.length !== 1 ? "s" : ""}`}
           </p>
         </div>
@@ -147,7 +146,7 @@ export default function UsersPage() {
         >
           <DialogTrigger
             render={
-              <Button size="sm" className="h-10 gap-2 bg-neutral-900 px-5 text-white hover:bg-neutral-700">
+              <Button size="sm" className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
                 <Plus className="size-4" /> Invite User
               </Button>
             }
@@ -185,7 +184,7 @@ export default function UsersPage() {
               </div>
               {inviteError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{inviteError}</p>}
               <DialogFooter>
-                <Button type="submit" disabled={inviteSubmitting} className="bg-neutral-900 text-white hover:bg-neutral-700">
+                <Button type="submit" disabled={inviteSubmitting} className="h-8 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
                   {inviteSubmitting ? "Creating…" : "Create User"}
                 </Button>
               </DialogFooter>
@@ -198,17 +197,17 @@ export default function UsersPage() {
       {loading ? (
         <GridSkeleton />
       ) : users.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 py-28">
-          <div className="flex size-16 items-center justify-center rounded-2xl bg-neutral-200">
-            <Users className="size-8 text-neutral-500" />
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50/50 py-20">
+          <div className="flex size-12 items-center justify-center rounded-xl bg-neutral-100">
+            <Users className="size-6 text-neutral-400" />
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-neutral-900">No users yet</h3>
-          <p className="mt-1.5 max-w-xs text-center text-sm text-neutral-500">
+          <h3 className="mt-4 text-sm font-semibold text-neutral-900">No users yet</h3>
+          <p className="mt-1 max-w-xs text-center text-sm text-neutral-400">
             Invite team members to give them access to properties and menus.
           </p>
           <Button onClick={() => setInviteOpen(true)}
-            className="mt-6 h-10 gap-2 bg-neutral-900 px-5 text-white hover:bg-neutral-700">
-            <Plus className="size-4" /> Invite your first user
+            className="mt-5 h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
+            <Plus className="size-3.5" /> Invite your first user
           </Button>
         </div>
       ) : (
@@ -221,27 +220,27 @@ export default function UsersPage() {
               <div
                 key={u.id}
                 onClick={() => router.push(`/dashboard/users/${u.id}`)}
-                className="group cursor-pointer rounded-2xl border border-neutral-200 bg-white p-5 transition-all hover:border-neutral-400 hover:shadow-md"
+                className="group cursor-pointer rounded-xl border border-neutral-200/80 bg-white p-4 transition-colors duration-150 hover:border-neutral-300"
               >
-                <div className="flex items-start gap-4">
-                  <div className={`flex size-11 shrink-0 items-center justify-center rounded-full ${color} text-lg font-bold text-white select-none`}>
+                <div className="flex items-center gap-3">
+                  <div className={`flex size-9 shrink-0 items-center justify-center rounded-full ${color} text-sm font-bold text-white select-none`}>
                     {initial}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-neutral-900">{u.name ?? u.email}</h3>
-                    {u.name && <p className="mt-0.5 text-sm text-neutral-500 truncate">{u.email}</p>}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-semibold text-neutral-900">{u.name ?? u.email}</h3>
+                    {u.name && <p className="truncate text-xs text-neutral-400">{u.email}</p>}
                   </div>
                 </div>
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${ROLE_STYLES[u.role] ?? "bg-neutral-100 text-neutral-600"}`}>
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${ROLE_STYLES[u.role] ?? "bg-neutral-100 text-neutral-600"}`}>
                       {ROLE_LABELS[u.role] ?? u.role}
                     </span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${u.isActive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
+                    <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${u.isActive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
                       {u.isActive ? "Active" : "Inactive"}
                     </span>
                   </div>
-                  <span className="text-xs text-neutral-400 transition-colors group-hover:text-neutral-600">
+                  <span className="text-[11px] text-neutral-400">
                     {u._count.propertyAccess + u._count.venueAccess + u._count.menuAccess} access
                   </span>
                 </div>
