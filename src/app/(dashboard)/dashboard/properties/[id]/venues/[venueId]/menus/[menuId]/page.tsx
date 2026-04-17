@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -564,6 +564,7 @@ function CopyItemsDialog({ open, onOpenChange, currentMenu, onCopied }: {
 
 export default function MenuBuilderPage() {
   const { id, venueId, menuId } = useParams<{ id: string; venueId: string; menuId: string }>();
+  const router = useRouter();
   const [me, setMe] = useState<MeData | null>(null);
   const [menuData, setMenuData] = useState<MenuData | null>(null);
   const [allergens, setAllergens] = useState<Allergen[]>([]);
@@ -576,6 +577,8 @@ export default function MenuBuilderPage() {
   const [itemDialog, setItemDialog] = useState<{ open: boolean; editing: Item | null; subCategoryId: string }>({ open: false, editing: null, subCategoryId: "" });
   const [deleteTarget, setDeleteTarget] = useState<{ type: "category" | "subcategory" | "item"; id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteMenuOpen, setDeleteMenuOpen] = useState(false);
+  const [deletingMenu, setDeletingMenu] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [copyItemsOpen, setCopyItemsOpen] = useState(false);
 
@@ -760,6 +763,22 @@ export default function MenuBuilderPage() {
     } finally { setDeleting(false); setDeleteTarget(null); }
   }
 
+  async function handleDeleteMenu() {
+    setDeletingMenu(true);
+    try {
+      const res = await fetch(`/api/menus/${menuId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success(`"${menuData?.name}" deleted`);
+        router.push(`/dashboard/properties/${id}/venues/${venueId}`);
+      } else {
+        toast.error("Failed to delete menu");
+      }
+    } finally {
+      setDeletingMenu(false);
+      setDeleteMenuOpen(false);
+    }
+  }
+
   // ─── Video management ──────────────────────────────────────────────────────
 
   async function addVideo(e: React.FormEvent) {
@@ -895,7 +914,7 @@ export default function MenuBuilderPage() {
               </div>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button type="submit" size="sm" disabled={menuSaving} className="bg-neutral-900 text-white hover:bg-neutral-700">{menuSaving ? "Saving…" : "Save"}</Button>
+              <Button type="submit" size="sm" disabled={menuSaving} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">{menuSaving ? "Saving…" : "Save Changes"}</Button>
               <Button type="button" variant="ghost" size="sm" onClick={() => setEditingMenuInfo(false)}>Cancel</Button>
             </div>
           </form>
@@ -923,13 +942,18 @@ export default function MenuBuilderPage() {
             </div>
             <div className="flex shrink-0 gap-2">
               {admin && (
-                <Button variant="outline" size="sm" onClick={() => setDuplicateOpen(true)}>
+                <Button variant="outline" size="sm" onClick={() => setDuplicateOpen(true)} className="h-8 gap-1.5 px-3 text-[13px]">
                   <Copy className="size-3.5" /> Duplicate
                 </Button>
               )}
               {canEdit && (
-                <Button variant="outline" size="sm" onClick={() => setEditingMenuInfo(true)}>
+                <Button variant="outline" size="sm" onClick={() => setEditingMenuInfo(true)} className="h-8 gap-1.5 px-3 text-[13px]">
                   <Pencil className="size-3.5" /> Edit
+                </Button>
+              )}
+              {admin && (
+                <Button variant="outline" size="sm" onClick={() => setDeleteMenuOpen(true)} className="h-8 gap-1.5 px-3 text-[13px] text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
+                  <Trash2 className="size-3.5" /> Delete
                 </Button>
               )}
             </div>
@@ -1383,6 +1407,14 @@ export default function MenuBuilderPage() {
         description={`"${deleteTarget?.name}" will be permanently deleted. This cannot be undone.`}
         onConfirm={handleDelete}
         loading={deleting}
+      />
+      <ConfirmDialog
+        open={deleteMenuOpen}
+        onOpenChange={(v) => { if (!v) setDeleteMenuOpen(false); }}
+        title="Delete menu?"
+        description={`"${menuData?.name}" and all its categories and items will be permanently deleted. This cannot be undone.`}
+        onConfirm={handleDeleteMenu}
+        loading={deletingMenu}
       />
       <DuplicateMenuDialog
         open={duplicateOpen}

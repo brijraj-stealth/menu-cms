@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Pencil, Trash2, BookOpen, MapPin, ChevronRight, Tag } from "lucide-react";
@@ -46,20 +46,20 @@ function PageSkeleton() {
   return (
     <div>
       <div className="mb-6 h-8 w-24 animate-pulse rounded-lg bg-neutral-100" />
-      <div className="mb-8 overflow-hidden rounded-2xl border border-neutral-200">
-        <div className="h-28 animate-pulse bg-neutral-100" />
-        <div className="p-6">
-          <div className="h-6 w-48 animate-pulse rounded-lg bg-neutral-100" />
-          <div className="mt-2 h-4 w-64 animate-pulse rounded-lg bg-neutral-100" />
+      <div className="mb-8 overflow-hidden rounded-xl border border-neutral-200">
+        <div className="h-24 animate-pulse bg-neutral-100" />
+        <div className="p-5">
+          <div className="h-5 w-48 animate-pulse rounded bg-neutral-100" />
+          <div className="mt-2 h-3.5 w-64 animate-pulse rounded bg-neutral-100" />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {[...Array(2)].map((_, i) => (
-          <div key={i} className="overflow-hidden rounded-2xl border border-neutral-200">
-            <div className="h-24 animate-pulse bg-neutral-100" />
-            <div className="p-5">
-              <div className="h-4 w-32 animate-pulse rounded-lg bg-neutral-100" />
-              <div className="mt-2 h-3 w-48 animate-pulse rounded-lg bg-neutral-100" />
+          <div key={i} className="overflow-hidden rounded-xl border border-neutral-200">
+            <div className="h-20 animate-pulse bg-neutral-100" />
+            <div className="p-4">
+              <div className="h-4 w-32 animate-pulse rounded bg-neutral-100" />
+              <div className="mt-2 h-3 w-48 animate-pulse rounded bg-neutral-100" />
             </div>
           </div>
         ))}
@@ -69,11 +69,10 @@ function PageSkeleton() {
 }
 
 function MenuDialog({
-  open, onOpenChange, initial, onSave,
+  open, onOpenChange, onSave,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  initial: { name: string; description: string } | null;
   onSave: (data: { name: string; description: string }) => Promise<void>;
 }) {
   const [form, setForm] = useState({ name: "", description: "" });
@@ -81,8 +80,8 @@ function MenuDialog({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) { setForm(initial ?? { name: "", description: "" }); setError(null); }
-  }, [open, initial]);
+    if (open) { setForm({ name: "", description: "" }); setError(null); }
+  }, [open]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,7 +101,7 @@ function MenuDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{initial ? "Edit Menu" : "Create New Menu"}</DialogTitle>
+          <DialogTitle>Create New Menu</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
           <div className="flex flex-col gap-1.5">
@@ -115,8 +114,8 @@ function MenuDialog({
           </div>
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
           <DialogFooter>
-            <Button type="submit" disabled={submitting} className="bg-neutral-900 text-white hover:bg-neutral-700">
-              {submitting ? "Saving…" : initial ? "Save Changes" : "Create Menu"}
+            <Button type="submit" disabled={submitting} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
+              {submitting ? "Saving…" : "Create Menu"}
             </Button>
           </DialogFooter>
         </form>
@@ -127,17 +126,17 @@ function MenuDialog({
 
 export default function VenuePage() {
   const { id, venueId } = useParams<{ id: string; venueId: string }>();
+  const router = useRouter();
   const [me, setMe] = useState<MeData | null>(null);
   const [venue, setVenue] = useState<VenueInfo | null>(null);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuDialogOpen, setMenuDialogOpen] = useState(false);
-  const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
   const [editingVenue, setEditingVenue] = useState(false);
   const [venueForm, setVenueForm] = useState({ name: "", description: "", address: "" });
   const [venueSaving, setVenueSaving] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Menu | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deleteVenueOpen, setDeleteVenueOpen] = useState(false);
+  const [deletingVenue, setDeletingVenue] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const [meRes, venueRes, menuRes] = await Promise.all([
@@ -171,6 +170,22 @@ export default function VenuePage() {
     setVenueSaving(false);
   }
 
+  async function handleDeleteVenue() {
+    setDeletingVenue(true);
+    try {
+      const res = await fetch(`/api/venues/${venueId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success(`"${venue?.name}" deleted`);
+        router.push(`/dashboard/properties/${id}`);
+      } else {
+        toast.error("Failed to delete venue");
+      }
+    } finally {
+      setDeletingVenue(false);
+      setDeleteVenueOpen(false);
+    }
+  }
+
   async function createMenu(data: { name: string; description: string }) {
     const res = await fetch("/api/menus", {
       method: "POST",
@@ -181,33 +196,6 @@ export default function VenuePage() {
     if (!res.ok) throw new Error(json.error ?? "Failed to create menu");
     setMenus((prev) => [...prev, json.data]);
     toast.success(`"${json.data.name}" created`);
-  }
-
-  async function updateMenu(data: { name: string; description: string }) {
-    if (!editingMenu) return;
-    const res = await fetch(`/api/menus/${editingMenu.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error ?? "Failed to update menu");
-    setMenus((prev) => prev.map((m) => (m.id === editingMenu.id ? { ...m, ...json.data } : m)));
-    setEditingMenu(null);
-    toast.success(`"${json.data.name}" updated`);
-  }
-
-  async function handleDeleteMenu() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/menus/${deleteTarget.id}`, { method: "DELETE" });
-      if (res.ok) { setMenus((prev) => prev.filter((m) => m.id !== deleteTarget.id)); toast.success(`"${deleteTarget.name}" deleted`); }
-      else toast.error("Failed to delete menu");
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
   }
 
   if (loading) return <PageSkeleton />;
@@ -224,29 +212,29 @@ export default function VenuePage() {
   }
 
   const canEditVenue = me ? (isAdmin(me.role) || canOnProperty(me, "EDIT", id)) : false;
+  const canManageVenue = me ? isAdmin(me.role) : false;
   const canAddMenu = me ? (isAdmin(me.role) || canOnVenue(me, "ADD", venueId) || canOnProperty(me, "ADD", id)) : false;
-  const canDeleteMenu = me ? isAdmin(me.role) : false;
   const vColor = cardColor(venue.name);
 
   return (
     <div>
       {/* Back */}
-      <Button variant="ghost" size="sm" render={<Link href={`/dashboard/properties/${id}`} />} className="-ml-2 mb-6 text-neutral-500 hover:text-neutral-900">
+      <Button variant="ghost" size="sm" render={<Link href={`/dashboard/properties/${id}`} />} className="-ml-2 mb-5 text-neutral-500 hover:text-neutral-900">
         <ArrowLeft className="size-4" /> {venue.property.name}
       </Button>
 
       {/* Venue header */}
-      <div className="mb-8 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-        <div className={`relative flex h-28 items-center justify-center ${vColor}`}>
-          <span className="text-5xl font-bold text-white/70 select-none">{venue.name[0]?.toUpperCase()}</span>
+      <div className="mb-6 overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
+        <div className={`relative flex h-24 items-center justify-center ${vColor}`}>
+          <span className="select-none text-5xl font-bold text-white/70">{venue.name[0]?.toUpperCase()}</span>
           <div className="absolute bottom-3 left-4">
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${venue.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
+            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${venue.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
               {venue.isActive ? "Active" : "Inactive"}
             </span>
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-5">
           {editingVenue ? (
             <form onSubmit={saveVenue} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
@@ -262,7 +250,7 @@ export default function VenuePage() {
                 <Input value={venueForm.description} onChange={(e) => setVenueForm((f) => ({ ...f, description: e.target.value }))} placeholder="Optional" />
               </div>
               <div className="flex gap-2 pt-1">
-                <Button type="submit" size="sm" disabled={venueSaving} className="bg-neutral-900 text-white hover:bg-neutral-700">
+                <Button type="submit" disabled={venueSaving} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
                   {venueSaving ? "Saving…" : "Save Changes"}
                 </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingVenue(false); setVenueForm({ name: venue.name, description: venue.description ?? "", address: venue.address ?? "" }); }}>
@@ -273,117 +261,97 @@ export default function VenuePage() {
           ) : (
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-neutral-900">{venue.name}</h1>
+                <h1 className="text-lg font-semibold text-neutral-900">{venue.name}</h1>
                 {venue.address && (
-                  <p className="mt-1.5 flex items-center gap-1.5 text-sm text-neutral-500">
-                    <MapPin className="size-4 shrink-0" /> {venue.address}
+                  <p className="mt-0.5 flex items-center gap-1.5 text-sm text-neutral-500">
+                    <MapPin className="size-3.5 shrink-0" /> {venue.address}
                   </p>
                 )}
-                {venue.description && <p className="mt-1 text-sm text-neutral-500">{venue.description}</p>}
+                {venue.description && <p className="mt-0.5 text-sm text-neutral-500">{venue.description}</p>}
               </div>
-              {canEditVenue && (
-                <Button variant="outline" size="sm" onClick={() => setEditingVenue(true)} className="shrink-0">
-                  <Pencil className="size-3.5" /> Edit Venue
-                </Button>
-              )}
+              <div className="flex shrink-0 gap-2">
+                {canEditVenue && (
+                  <Button variant="outline" size="sm" onClick={() => setEditingVenue(true)} className="h-8 gap-1.5 px-3 text-[13px]">
+                    <Pencil className="size-3.5" /> Edit
+                  </Button>
+                )}
+                {canManageVenue && (
+                  <Button variant="outline" size="sm" onClick={() => setDeleteVenueOpen(true)} className="h-8 gap-1.5 px-3 text-[13px] text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
+                    <Trash2 className="size-3.5" /> Delete
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* Menus section */}
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-neutral-900">Menus</h2>
+          <h2 className="text-base font-semibold text-neutral-900">Menus</h2>
           <p className="text-sm text-neutral-500">
-            {menus.length === 0 ? "No menus yet" : `${menus.length} menu${menus.length !== 1 ? "s" : ""} at this venue`}
+            {menus.length === 0 ? "No menus yet" : `${menus.length} menu${menus.length !== 1 ? "s" : ""}`}
           </p>
         </div>
         {canAddMenu && (
           <Button
-            size="sm"
-            onClick={() => { setEditingMenu(null); setMenuDialogOpen(true); }}
-            className="h-9 gap-1.5 bg-neutral-900 px-4 text-white hover:bg-neutral-700"
+            onClick={() => setMenuDialogOpen(true)}
+            className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800"
           >
-            <Plus className="size-4" /> Create Menu
+            <Plus className="size-3.5" /> Create Menu
           </Button>
         )}
       </div>
 
       {menus.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 py-20">
-          <div className="flex size-14 items-center justify-center rounded-2xl bg-neutral-200">
-            <BookOpen className="size-7 text-neutral-500" />
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50/50 py-16">
+          <div className="flex size-12 items-center justify-center rounded-xl bg-neutral-100">
+            <BookOpen className="size-6 text-neutral-400" />
           </div>
-          <h3 className="mt-4 font-semibold text-neutral-900">No menus yet</h3>
-          <p className="mt-1.5 max-w-xs text-center text-sm text-neutral-500">
-            Menus contain categories and items. Create one to start building your menu.
+          <h3 className="mt-4 text-sm font-semibold text-neutral-900">No menus yet</h3>
+          <p className="mt-1 max-w-xs text-center text-sm text-neutral-400">
+            Create a menu to start building categories and items.
           </p>
           {canAddMenu && (
             <Button
-              onClick={() => { setEditingMenu(null); setMenuDialogOpen(true); }}
-              className="mt-5 h-9 gap-1.5 bg-neutral-900 px-4 text-white hover:bg-neutral-700"
-              size="sm"
+              onClick={() => setMenuDialogOpen(true)}
+              className="mt-5 h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800"
             >
-              <Plus className="size-4" /> Create your first menu
+              <Plus className="size-3.5" /> Create your first menu
             </Button>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {menus.map((m) => {
             const mColor = cardColor(m.name);
-            const canEdit = me ? (isAdmin(me.role) || canOnVenue(me, "EDIT", venueId) || canOnProperty(me, "EDIT", id)) : false;
             return (
-              <div key={m.id} className="group overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:border-neutral-400 hover:shadow-md">
+              <div key={m.id} className="overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
                 {/* Menu banner */}
-                <div className={`relative flex h-24 items-center justify-center ${mColor}`}>
-                  <BookOpen className="size-10 text-white/70" />
-                  <div className="absolute bottom-2.5 left-2.5">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${m.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
+                <div className={`relative flex h-20 items-center justify-center ${mColor}`}>
+                  <BookOpen className="size-8 text-white/70" />
+                  <div className="absolute bottom-2 left-2">
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${m.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
                       {m.isActive ? "Active" : "Inactive"}
                     </span>
-                  </div>
-                  <div
-                    className="absolute right-2.5 top-2.5 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {canEdit && (
-                      <button
-                        onClick={() => { setEditingMenu(m); setMenuDialogOpen(true); }}
-                        className="flex items-center justify-center rounded-lg bg-white/90 p-1.5 shadow hover:bg-white"
-                      >
-                        <Pencil className="size-3.5 text-neutral-600" />
-                      </button>
-                    )}
-                    {canDeleteMenu && (
-                      <button
-                        onClick={() => setDeleteTarget(m)}
-                        className="flex items-center justify-center rounded-lg bg-white/90 p-1.5 shadow hover:bg-white"
-                      >
-                        <Trash2 className="size-3.5 text-red-500" />
-                      </button>
-                    )}
                   </div>
                 </div>
 
                 {/* Menu body */}
-                <div className="p-5">
-                  <h3 className="font-semibold text-neutral-900">{m.name}</h3>
-                  {m.description && <p className="mt-1 text-xs text-neutral-400 line-clamp-2">{m.description}</p>}
-
-                  <div className="mt-3 flex items-center gap-1.5 text-xs text-neutral-400">
-                    <Tag className="size-3.5" />
+                <div className="p-4">
+                  <h3 className="text-sm font-semibold text-neutral-900">{m.name}</h3>
+                  {m.description && <p className="mt-0.5 line-clamp-1 text-xs text-neutral-400">{m.description}</p>}
+                  <div className="mt-2 flex items-center gap-1 text-xs text-neutral-400">
+                    <Tag className="size-3" />
                     {m._count.categories} categor{m._count.categories !== 1 ? "ies" : "y"}
                   </div>
-
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <Button
-                      size="sm"
                       render={<Link href={`/dashboard/properties/${id}/venues/${venueId}/menus/${m.id}`} />}
-                      className="w-full justify-center gap-1.5 bg-neutral-900 py-2 text-sm text-white hover:bg-neutral-700"
+                      className="h-8 w-full gap-1.5 bg-neutral-900 text-[13px] text-white hover:bg-neutral-800"
                     >
-                      Edit Menu <ChevronRight className="size-4" />
+                      Edit Menu <ChevronRight className="size-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -396,17 +364,16 @@ export default function VenuePage() {
       <MenuDialog
         open={menuDialogOpen}
         onOpenChange={setMenuDialogOpen}
-        initial={editingMenu ? { name: editingMenu.name, description: editingMenu.description ?? "" } : null}
-        onSave={editingMenu ? updateMenu : createMenu}
+        onSave={createMenu}
       />
 
       <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
-        title="Delete menu?"
-        description={`"${deleteTarget?.name}" and all its categories and items will be permanently deleted. This cannot be undone.`}
-        onConfirm={handleDeleteMenu}
-        loading={deleting}
+        open={deleteVenueOpen}
+        onOpenChange={(v) => { if (!v) setDeleteVenueOpen(false); }}
+        title="Delete venue?"
+        description={`"${venue.name}" and all its menus and items will be permanently deleted. This cannot be undone.`}
+        onConfirm={handleDeleteVenue}
+        loading={deletingVenue}
       />
     </div>
   );

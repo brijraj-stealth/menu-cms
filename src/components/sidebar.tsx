@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import {
   UtensilsCrossed,
   Building2,
+  BookOpen,
   Users,
   AlertCircle,
   LogOut,
@@ -13,9 +14,10 @@ import {
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { label: "Properties", href: "/dashboard", icon: Building2 },
-  { label: "Users", href: "/dashboard/users", icon: Users },
-  { label: "Allergens", href: "/dashboard/allergens", icon: AlertCircle },
+  { label: "Menus", href: "/dashboard", icon: BookOpen, exact: true },
+  { label: "Properties", href: "/dashboard/properties", icon: Building2, exact: false },
+  { label: "Users", href: "/dashboard/users", icon: Users, exact: false },
+  { label: "Allergens", href: "/dashboard/allergens", icon: AlertCircle, exact: false },
 ];
 
 interface SidebarProps {
@@ -49,11 +51,8 @@ export function Sidebar({ user }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex flex-col gap-px px-2 py-1">
-        {visibleItems.map(({ label, href, icon: Icon }) => {
-          const isActive =
-            href === "/dashboard"
-              ? pathname === "/dashboard" || pathname.startsWith("/dashboard/properties")
-              : pathname.startsWith(href);
+        {visibleItems.map(({ label, href, icon: Icon, exact }) => {
+          const isActive = exact ? pathname === href : pathname.startsWith(href);
 
           return (
             <Link

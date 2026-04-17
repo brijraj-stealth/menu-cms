@@ -29,9 +29,47 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const venueId = searchParams.get("venueId");
-  if (!venueId) return Response.json({ error: "venueId required" }, { status: 400 });
 
   try {
+    if (!venueId) {
+      const include = {
+        _count: { select: { categories: true } },
+        venue: {
+          select: {
+            id: true, name: true,
+            property: { select: { id: true, name: true, slug: true } },
+          },
+        },
+      } as const;
+
+      if (isAdmin(session.user.role as string)) {
+        const menus = await prisma.menu.findMany({
+          orderBy: { updatedAt: "desc" },
+          include,
+        });
+        return Response.json({ data: menus }, { headers: { "Cache-Control": "no-store" } });
+      }
+
+      // Staff: return only menus for venues/properties they have access to
+      const [venueAccess, propAccess] = await Promise.all([
+        prisma.userVenueAccess.findMany({ where: { userId: session.user.id }, select: { venueId: true } }),
+        prisma.userPropertyAccess.findMany({
+          where: { userId: session.user.id },
+          include: { property: { select: { venues: { select: { id: true } } } } },
+        }),
+      ]);
+      const venueIds = new Set([
+        ...venueAccess.map((a) => a.venueId),
+        ...propAccess.flatMap((pa) => pa.property.venues.map((v) => v.id)),
+      ]);
+      const menus = await prisma.menu.findMany({
+        where: { venueId: { in: [...venueIds] } },
+        orderBy: { updatedAt: "desc" },
+        include,
+      });
+      return Response.json({ data: menus }, { headers: { "Cache-Control": "no-store" } });
+    }
+
     if (!isAdmin(session.user.role as string)) {
       const ok = await hasVenueAccess(session.user.id, venueId);
       if (!ok) return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -69,7 +107,15 @@ export async function POST(request: Request) {
 
     const menu = await prisma.menu.create({
       data: { ...data, venueId },
-      include: { _count: { select: { categories: true } } },
+      include: {
+        _count: { select: { categories: true } },
+        venue: {
+          select: {
+            id: true, name: true,
+            property: { select: { id: true, name: true, slug: true } },
+          },
+        },
+      },
     });
 
     return Response.json({ data: menu }, { status: 201 });
