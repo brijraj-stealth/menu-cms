@@ -1,0 +1,137 @@
+import { auth } from "@/auth";
+import { prisma } from "@/lib/db";
+import { z } from "zod";
+
+const updateSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+function isAdmin(role: string) {
+  return role === "SUPER_ADMIN" || role === "ADMIN";
+}
+
+async function checkMenuAccess(userId: string, menuId: string, permission: string) {
+  const menu = await prisma.menu.findUnique({
+    where: { id: menuId },
+    select: { venueId: true, venue: { select: { propertyId: true } } },
+  });
+  if (!menu) return { ok: false, notFound: true };
+
+  const [ma, va, pa] = await Promise.all([
+    prisma.userMenuAccess.findUnique({ where: { userId_menuId: { userId, menuId } }, select: { permissions: true } }),
+    prisma.userVenueAccess.findUnique({ where: { userId_venueId: { userId, venueId: menu.venueId } }, select: { permissions: true } }),
+    prisma.userPropertyAccess.findUnique({ where: { userId_propertyId: { userId, propertyId: menu.venue.propertyId } }, select: { permissions: true } }),
+  ]);
+
+  const ok = ma?.permissions.includes(permission as "EDIT") || va?.permissions.includes(permission as "EDIT") || pa?.permissions.includes(permission as "EDIT") || false;
+  return { ok, notFound: false };
+}
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+
+  try {
+    const menu = await prisma.menu.findUnique({
+      where: { id },
+      include: {
+        venue: {
+          select: {
+            id: true,
+            name: true,
+            propertyId: true,
+            property: { select: { id: true, name: true, slug: true } },
+          },
+        },
+        categories: {
+          orderBy: { sortOrder: "asc" },
+          include: {
+            subCategories: {
+              orderBy: { sortOrder: "asc" },
+              include: {
+                items: {
+                  orderBy: { createdAt: "asc" },
+                  include: {
+                    variants: { orderBy: { createdAt: "asc" } },
+                    itemAllergens: { include: { allergen: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!menu) return Response.json({ error: "Menu not found" }, { status: 404 });
+
+    if (!isAdmin(session.user.role as string)) {
+      const [ma, va, pa] = await Promise.all([
+        prisma.userMenuAccess.findUnique({ where: { userId_menuId: { userId: session.user.id, menuId: id } } }),
+        prisma.userVenueAccess.findUnique({ where: { userId_venueId: { userId: session.user.id, venueId: menu.venueId } } }),
+        prisma.userPropertyAccess.findUnique({ where: { userId_propertyId: { userId: session.user.id, propertyId: menu.venue.propertyId } } }),
+      ]);
+      if (!ma && !va && !pa) return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    return Response.json({ data: menu }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return Response.json({ error: "Failed to fetch menu" }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+
+  try {
+    if (!isAdmin(session.user.role as string)) {
+      const { ok, notFound } = await checkMenuAccess(session.user.id, id, "EDIT");
+      if (notFound) return Response.json({ error: "Not found" }, { status: 404 });
+      if (!ok) return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const parsed = updateSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+    }
+
+    const menu = await prisma.menu.update({ where: { id }, data: parsed.data });
+    return Response.json({ data: menu });
+  } catch {
+    return Response.json({ error: "Failed to update menu" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+
+  try {
+    await prisma.menu.delete({ where: { id } });
+    return Response.json({ data: { success: true } });
+  } catch {
+    return Response.json({ error: "Failed to delete menu" }, { status: 500 });
+  }
+}
