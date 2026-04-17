@@ -81,7 +81,7 @@ export async function PUT(
       where: { id },
       select: {
         name: true, description: true, basePrice: true, image: true, isActive: true, sortOrder: true,
-        allergens: { select: { allergen: { select: { id: true, name: true } } } },
+        itemAllergens: { select: { allergen: { select: { id: true, name: true } } } },
       },
     });
 
@@ -133,13 +133,13 @@ export async function PUT(
 
       // Track allergen changes
       if (allergenIds !== undefined) {
-        const oldIds = before.allergens.map((a) => a.allergen.id).sort().join(",");
+        const oldIds = before.itemAllergens.map((a) => a.allergen.id).sort().join(",");
         const newIds = [...allergenIds].sort().join(",");
         if (oldIds !== newIds) {
           const newAllergens = allergenIds.length > 0
             ? await prisma.allergen.findMany({ where: { id: { in: allergenIds } }, select: { name: true } })
             : [];
-          const oldNames = before.allergens.map((a) => a.allergen.name).sort().join(", ") || "none";
+          const oldNames = before.itemAllergens.map((a) => a.allergen.name).sort().join(", ") || "none";
           const newNames = newAllergens.map((a) => a.name).sort().join(", ") || "none";
           changes.push({ field: "allergens", old: oldNames, new: newNames });
         }
