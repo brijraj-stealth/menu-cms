@@ -94,6 +94,27 @@ export async function POST(
       create: { userId, propertyId: targetId, permissions },
       include: { property: { select: { id: true, name: true, slug: true } } },
     });
+
+    // Cascade to all venues and menus under this property
+    const venues = await prisma.venue.findMany({
+      where: { propertyId: targetId },
+      select: { id: true, menus: { select: { id: true } } },
+    });
+    for (const venue of venues) {
+      await prisma.userVenueAccess.upsert({
+        where: { userId_venueId: { userId, venueId: venue.id } },
+        update: { permissions },
+        create: { userId, venueId: venue.id, permissions },
+      });
+      for (const menu of venue.menus) {
+        await prisma.userMenuAccess.upsert({
+          where: { userId_menuId: { userId, menuId: menu.id } },
+          update: { permissions },
+          create: { userId, menuId: menu.id, permissions },
+        });
+      }
+    }
+
     return Response.json({ data: access });
   }
 
@@ -104,6 +125,20 @@ export async function POST(
       create: { userId, venueId: targetId, permissions },
       include: { venue: { select: { id: true, name: true, propertyId: true } } },
     });
+
+    // Cascade to all menus under this venue
+    const menus = await prisma.menu.findMany({
+      where: { venueId: targetId },
+      select: { id: true },
+    });
+    for (const menu of menus) {
+      await prisma.userMenuAccess.upsert({
+        where: { userId_menuId: { userId, menuId: menu.id } },
+        update: { permissions },
+        create: { userId, menuId: menu.id, permissions },
+      });
+    }
+
     return Response.json({ data: access });
   }
 

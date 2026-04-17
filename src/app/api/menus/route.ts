@@ -136,6 +136,26 @@ export async function POST(request: Request) {
       },
     });
 
+    // Cascade: give every user with venue or property access an explicit menu access record
+    const propertyId = menu.venue.property.id;
+    const [vAccessList, pAccessList] = await Promise.all([
+      prisma.userVenueAccess.findMany({ where: { venueId }, select: { userId: true, permissions: true } }),
+      prisma.userPropertyAccess.findMany({ where: { propertyId }, select: { userId: true, permissions: true } }),
+    ]);
+    const accessMap = new Map<string, string[]>();
+    for (const a of pAccessList) accessMap.set(a.userId, a.permissions);
+    for (const a of vAccessList) accessMap.set(a.userId, a.permissions); // venue overrides property
+    if (accessMap.size > 0) {
+      await prisma.userMenuAccess.createMany({
+        data: [...accessMap.entries()].map(([userId, permissions]) => ({
+          userId,
+          menuId: menu.id,
+          permissions,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     await prisma.activityLog.create({
       data: {
         userId: session.user.id as string,

@@ -76,6 +76,22 @@ export async function POST(request: Request) {
       include: { _count: { select: { menus: true } } },
     });
 
+    // Cascade: give every user who has property access an explicit venue access record
+    const propAccessList = await prisma.userPropertyAccess.findMany({
+      where: { propertyId },
+      select: { userId: true, permissions: true },
+    });
+    if (propAccessList.length > 0) {
+      await prisma.userVenueAccess.createMany({
+        data: propAccessList.map((pa) => ({
+          userId: pa.userId,
+          venueId: venue.id,
+          permissions: pa.permissions,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     await prisma.activityLog.create({
       data: {
         userId: session.user.id as string,
