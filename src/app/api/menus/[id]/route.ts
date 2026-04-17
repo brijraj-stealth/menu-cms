@@ -130,7 +130,7 @@ export async function PUT(
       const wasPublished = before.isActive === false && parsed.data.isActive === true;
       const wasArchived = before.isActive === true && parsed.data.isActive === false;
       const action = wasPublished ? "published" : wasArchived ? "archived" : "updated";
-      void prisma.activityLog.create({
+      await prisma.activityLog.create({
         data: {
           userId: session.user.id as string,
           action,
@@ -165,7 +165,7 @@ export async function DELETE(
   try {
     const menu = await prisma.menu.findUnique({ where: { id }, select: { name: true } });
     await prisma.menu.delete({ where: { id } });
-    void prisma.activityLog.create({
+    await prisma.activityLog.create({
       data: {
         userId: session.user.id as string,
         action: "deleted",

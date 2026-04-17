@@ -92,7 +92,7 @@ export async function PUT(
       const changes = tracked
         .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
         .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));
-      void prisma.activityLog.create({
+      await prisma.activityLog.create({
         data: {
           userId: session.user.id as string,
           action: "updated",
@@ -124,7 +124,7 @@ export async function DELETE(
   try {
     const venue = await prisma.venue.findUnique({ where: { id }, select: { name: true } });
     await prisma.venue.delete({ where: { id } });
-    void prisma.activityLog.create({
+    await prisma.activityLog.create({
       data: {
         userId: session.user.id as string,
         action: "deleted",

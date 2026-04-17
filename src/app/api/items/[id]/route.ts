@@ -117,7 +117,7 @@ export async function PUT(
         .filter((f) => before[f] !== (itemData as Record<string, unknown>)[f] && (itemData as Record<string, unknown>)[f] !== undefined)
         .map((f) => ({ field: f, old: before[f] ?? null, new: (itemData as Record<string, unknown>)[f] ?? null }));
       const wasArchived = before.isActive === true && itemData.isActive === false;
-      void prisma.activityLog.create({
+      await prisma.activityLog.create({
         data: {
           userId: session.user.id as string,
           action: wasArchived ? "archived" : "updated",
@@ -149,7 +149,7 @@ export async function DELETE(
   try {
     const item = await prisma.item.findUnique({ where: { id }, select: { name: true } });
     await prisma.item.delete({ where: { id } });
-    void prisma.activityLog.create({
+    await prisma.activityLog.create({
       data: {
         userId: session.user.id as string,
         action: "deleted",

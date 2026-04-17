@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       include: { _count: { select: { menus: true } } },
     });
 
-    void prisma.activityLog.create({
+    await prisma.activityLog.create({
       data: {
         userId: session.user.id as string,
         action: "created",
