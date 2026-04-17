@@ -1,0 +1,92 @@
+import { auth } from "@/auth";
+import { prisma } from "@/lib/db";
+import { z } from "zod";
+
+const updateSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const property = await prisma.property.findUnique({
+      where: { id },
+      include: {
+        venues: { orderBy: { createdAt: "desc" } },
+        _count: { select: { venues: true } },
+      },
+    });
+
+    if (!property) {
+      return Response.json({ error: "Property not found" }, { status: 404 });
+    }
+
+    return Response.json({ data: property });
+  } catch {
+    return Response.json({ error: "Failed to fetch property" }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const body = await request.json();
+    const parsed = updateSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return Response.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid input" },
+        { status: 400 }
+      );
+    }
+
+    const property = await prisma.property.update({
+      where: { id },
+      data: parsed.data,
+      include: { _count: { select: { venues: true } } },
+    });
+
+    return Response.json({ data: property });
+  } catch {
+    return Response.json({ error: "Failed to update property" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    await prisma.property.delete({ where: { id } });
+    return Response.json({ data: { success: true } });
+  } catch {
+    return Response.json({ error: "Failed to delete property" }, { status: 500 });
+  }
+}
