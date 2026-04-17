@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -8,6 +9,7 @@ const updateSchema = z.object({
   email: z.string().email().optional(),
   role: z.nativeEnum(UserRole).optional(),
   isActive: z.boolean().optional(),
+  password: z.string().min(8, "Password must be at least 8 characters").optional(),
 });
 
 export async function GET(
@@ -97,9 +99,15 @@ export async function PUT(
       );
     }
 
+    const { password, ...rest } = parsed.data;
+    const updateData: Record<string, unknown> = { ...rest };
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 12);
+    }
+
     const user = await prisma.user.update({
       where: { id },
-      data: parsed.data,
+      data: updateData,
       select: {
         id: true,
         name: true,
