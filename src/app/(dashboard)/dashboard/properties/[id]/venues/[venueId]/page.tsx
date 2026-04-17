@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Pencil, Trash2, BookOpen, MapPin, ChevronRight, Tag } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, BookOpen, MapPin, Tag, Camera, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -18,6 +18,7 @@ interface VenueInfo {
   name: string;
   description: string | null;
   address: string | null;
+  image: string | null;
   isActive: boolean;
   propertyId: string;
   property: { id: string; name: string; slug: string };
@@ -47,7 +48,7 @@ function PageSkeleton() {
     <div>
       <div className="mb-6 h-8 w-24 animate-pulse rounded-lg bg-neutral-100" />
       <div className="mb-8 overflow-hidden rounded-xl border border-neutral-200">
-        <div className="h-24 animate-pulse bg-neutral-100" />
+        <div className="h-32 animate-pulse bg-neutral-100" />
         <div className="p-5">
           <div className="h-5 w-48 animate-pulse rounded bg-neutral-100" />
           <div className="mt-2 h-3.5 w-64 animate-pulse rounded bg-neutral-100" />
@@ -56,7 +57,7 @@ function PageSkeleton() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {[...Array(2)].map((_, i) => (
           <div key={i} className="overflow-hidden rounded-xl border border-neutral-200">
-            <div className="h-20 animate-pulse bg-neutral-100" />
+            <div className="aspect-square animate-pulse bg-neutral-100" />
             <div className="p-4">
               <div className="h-4 w-32 animate-pulse rounded bg-neutral-100" />
               <div className="mt-2 h-3 w-48 animate-pulse rounded bg-neutral-100" />
@@ -115,7 +116,7 @@ function MenuDialog({
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={submitting} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
-              {submitting ? "Saving…" : "Create Menu"}
+              {submitting ? "Creating…" : "Create Menu"}
             </Button>
           </DialogFooter>
         </form>
@@ -137,6 +138,8 @@ export default function VenuePage() {
   const [venueSaving, setVenueSaving] = useState(false);
   const [deleteVenueOpen, setDeleteVenueOpen] = useState(false);
   const [deletingVenue, setDeletingVenue] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const fetchAll = useCallback(async () => {
     const [meRes, venueRes, menuRes] = await Promise.all([
@@ -186,6 +189,42 @@ export default function VenuePage() {
     }
   }
 
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    const toastId = toast.loading("Uploading image…");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      const uploadJson = await uploadRes.json();
+      if (!uploadRes.ok) { toast.error(uploadJson.error ?? "Upload failed", { id: toastId }); return; }
+      const saveRes = await fetch(`/api/venues/${venueId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: uploadJson.url }),
+      });
+      if (!saveRes.ok) { toast.error("Failed to save image", { id: toastId }); return; }
+      setVenue((prev) => prev ? { ...prev, image: uploadJson.url } : prev);
+      toast.success("Image updated", { id: toastId });
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleRemoveImage() {
+    const toastId = toast.loading("Removing image…");
+    const res = await fetch(`/api/venues/${venueId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: null }),
+    });
+    if (res.ok) { setVenue((prev) => prev ? { ...prev, image: null } : prev); toast.success("Image removed", { id: toastId }); }
+    else toast.error("Failed to remove image", { id: toastId });
+  }
+
   async function createMenu(data: { name: string; description: string }) {
     const res = await fetch("/api/menus", {
       method: "POST",
@@ -223,10 +262,14 @@ export default function VenuePage() {
         <ArrowLeft className="size-4" /> {venue.property.name}
       </Button>
 
-      {/* Venue header */}
+      {/* Venue header card */}
       <div className="mb-6 overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
-        <div className={`relative flex h-24 items-center justify-center ${vColor}`}>
-          <span className="select-none text-5xl font-bold text-white/70">{venue.name[0]?.toUpperCase()}</span>
+        <div className={`relative flex h-32 items-center justify-center overflow-hidden ${vColor}`}>
+          {venue.image ? (
+            <img src={venue.image} alt={venue.name} className="h-full w-full object-cover" />
+          ) : (
+            <span className="select-none text-6xl font-bold text-white/60">{venue.name[0]?.toUpperCase()}</span>
+          )}
           <div className="absolute bottom-3 left-4">
             <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${venue.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
               {venue.isActive ? "Active" : "Inactive"}
@@ -237,6 +280,30 @@ export default function VenuePage() {
         <div className="p-5">
           {editingVenue ? (
             <form onSubmit={saveVenue} className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 pb-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="h-7 gap-1.5 px-2.5 text-xs"
+                >
+                  <Camera className="size-3.5" />
+                  {uploadingImage ? "Uploading…" : venue.image ? "Change Image" : "Upload Image"}
+                </Button>
+                {venue.image && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemoveImage}
+                    className="h-7 gap-1.5 px-2.5 text-xs text-red-600 hover:border-red-200 hover:bg-red-50"
+                  >
+                    <Trash2 className="size-3.5" /> Remove Image
+                  </Button>
+                )}
+              </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-neutral-700">Name</label>
                 <Input value={venueForm.name} onChange={(e) => setVenueForm((f) => ({ ...f, name: e.target.value }))} required autoFocus />
@@ -251,10 +318,10 @@ export default function VenuePage() {
               </div>
               <div className="flex gap-2 pt-1">
                 <Button type="submit" disabled={venueSaving} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
-                  {venueSaving ? "Saving…" : "Save Changes"}
+                  <Check className="size-3.5" /> {venueSaving ? "Saving…" : "Save Changes"}
                 </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingVenue(false); setVenueForm({ name: venue.name, description: venue.description ?? "", address: venue.address ?? "" }); }}>
-                  Cancel
+                  <X className="size-3.5" /> Cancel
                 </Button>
               </div>
             </form>
@@ -272,12 +339,12 @@ export default function VenuePage() {
               <div className="flex shrink-0 gap-2">
                 {canEditVenue && (
                   <Button variant="outline" size="sm" onClick={() => setEditingVenue(true)} className="h-8 gap-1.5 px-3 text-[13px]">
-                    <Pencil className="size-3.5" /> Edit
+                    <Pencil className="size-3.5" /> Edit Venue
                   </Button>
                 )}
                 {canManageVenue && (
                   <Button variant="outline" size="sm" onClick={() => setDeleteVenueOpen(true)} className="h-8 gap-1.5 px-3 text-[13px] text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
-                    <Trash2 className="size-3.5" /> Delete
+                    <Trash2 className="size-3.5" /> Delete Venue
                   </Button>
                 )}
               </div>
@@ -295,10 +362,7 @@ export default function VenuePage() {
           </p>
         </div>
         {canAddMenu && (
-          <Button
-            onClick={() => setMenuDialogOpen(true)}
-            className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800"
-          >
+          <Button onClick={() => setMenuDialogOpen(true)} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
             <Plus className="size-3.5" /> Create Menu
           </Button>
         )}
@@ -314,10 +378,7 @@ export default function VenuePage() {
             Create a menu to start building categories and items.
           </p>
           {canAddMenu && (
-            <Button
-              onClick={() => setMenuDialogOpen(true)}
-              className="mt-5 h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800"
-            >
+            <Button onClick={() => setMenuDialogOpen(true)} className="mt-5 h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
               <Plus className="size-3.5" /> Create your first menu
             </Button>
           )}
@@ -328,10 +389,10 @@ export default function VenuePage() {
             const mColor = cardColor(m.name);
             return (
               <div key={m.id} className="overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
-                {/* Menu banner */}
-                <div className={`relative flex h-20 items-center justify-center ${mColor}`}>
-                  <BookOpen className="size-8 text-white/70" />
-                  <div className="absolute bottom-2 left-2">
+                {/* Square menu image */}
+                <div className={`relative aspect-square flex items-center justify-center ${mColor}`}>
+                  <BookOpen className="size-14 text-white/50" />
+                  <div className="absolute bottom-3 left-3">
                     <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${m.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
                       {m.isActive ? "Active" : "Inactive"}
                     </span>
@@ -341,7 +402,7 @@ export default function VenuePage() {
                 {/* Menu body */}
                 <div className="p-4">
                   <h3 className="text-sm font-semibold text-neutral-900">{m.name}</h3>
-                  {m.description && <p className="mt-0.5 line-clamp-1 text-xs text-neutral-400">{m.description}</p>}
+                  {m.description && <p className="mt-0.5 line-clamp-2 text-xs text-neutral-400">{m.description}</p>}
                   <div className="mt-2 flex items-center gap-1 text-xs text-neutral-400">
                     <Tag className="size-3" />
                     {m._count.categories} categor{m._count.categories !== 1 ? "ies" : "y"}
@@ -351,7 +412,7 @@ export default function VenuePage() {
                       render={<Link href={`/dashboard/properties/${id}/venues/${venueId}/menus/${m.id}`} />}
                       className="h-8 w-full gap-1.5 bg-neutral-900 text-[13px] text-white hover:bg-neutral-800"
                     >
-                      Edit Menu <ChevronRight className="size-3.5" />
+                      <Pencil className="size-3.5" /> Edit Menu
                     </Button>
                   </div>
                 </div>
@@ -361,11 +422,9 @@ export default function VenuePage() {
         </div>
       )}
 
-      <MenuDialog
-        open={menuDialogOpen}
-        onOpenChange={setMenuDialogOpen}
-        onSave={createMenu}
-      />
+      <input ref={imageInputRef} type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+
+      <MenuDialog open={menuDialogOpen} onOpenChange={setMenuDialogOpen} onSave={createMenu} />
 
       <ConfirmDialog
         open={deleteVenueOpen}

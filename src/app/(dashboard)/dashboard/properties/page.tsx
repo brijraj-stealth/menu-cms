@@ -1,16 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Building2, MapPin, Trash2, Camera, ChevronRight } from "lucide-react";
+import { Plus, Building2, MapPin, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import { type MeData, isAdmin } from "@/lib/permissions";
 
 interface Property {
@@ -39,7 +37,7 @@ function GridSkeleton() {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {[...Array(3)].map((_, i) => (
         <div key={i} className="overflow-hidden rounded-xl border border-neutral-200">
-          <div className="h-24 animate-pulse bg-neutral-100" />
+          <div className="aspect-square animate-pulse bg-neutral-100" />
           <div className="p-4">
             <div className="h-4 w-36 animate-pulse rounded bg-neutral-100" />
             <div className="mt-2 h-3 w-48 animate-pulse rounded bg-neutral-100" />
@@ -52,7 +50,6 @@ function GridSkeleton() {
 }
 
 export default function PropertiesPage() {
-  const router = useRouter();
   const [me, setMe] = useState<MeData | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,11 +58,6 @@ export default function PropertiesPage() {
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
-  const pendingUploadIdRef = useRef<string | null>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   async function fetchAll() {
     const [meRes, propsRes] = await Promise.all([fetch("/api/me"), fetch("/api/properties")]);
@@ -98,70 +90,10 @@ export default function PropertiesPage() {
     }
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/properties/${deleteTarget.id}`, { method: "DELETE" });
-      if (res.ok) {
-        setProperties((prev) => prev.filter((p) => p.id !== deleteTarget.id));
-        toast.success(`"${deleteTarget.name}" deleted`);
-      } else {
-        toast.error("Failed to delete property");
-      }
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
-  }
-
-  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    const id = pendingUploadIdRef.current;
-    if (!file || !id) return;
-    setUploadingId(id);
-    const toastId = toast.loading("Uploading image…");
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
-      const uploadJson = await uploadRes.json();
-      if (!uploadRes.ok) { toast.error(uploadJson.error ?? "Upload failed", { id: toastId }); return; }
-      const saveRes = await fetch(`/api/properties/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ logo: uploadJson.url }),
-      });
-      if (!saveRes.ok) { toast.error("Failed to save image", { id: toastId }); return; }
-      setProperties((prev) => prev.map((p) => p.id === id ? { ...p, logo: uploadJson.url } : p));
-      toast.success("Image updated", { id: toastId });
-    } finally {
-      setUploadingId(null);
-      pendingUploadIdRef.current = null;
-      e.target.value = "";
-    }
-  }
-
-  async function handleRemoveLogo(id: string) {
-    const toastId = toast.loading("Removing image…");
-    const res = await fetch(`/api/properties/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ logo: null }),
-    });
-    if (res.ok) {
-      setProperties((prev) => prev.map((p) => p.id === id ? { ...p, logo: null } : p));
-      toast.success("Image removed", { id: toastId });
-    } else {
-      toast.error("Failed to remove image", { id: toastId });
-    }
-  }
-
   const canCreate = me ? isAdmin(me.role) : false;
 
   return (
     <div>
-      {/* Page header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-neutral-900">Properties</h1>
@@ -213,7 +145,6 @@ export default function PropertiesPage() {
         )}
       </div>
 
-      {/* Content */}
       {loading ? (
         <GridSkeleton />
       ) : properties.length === 0 ? (
@@ -239,63 +170,27 @@ export default function PropertiesPage() {
           {properties.map((p) => {
             const color = cardColor(p.name);
             const initial = p.name[0]?.toUpperCase() ?? "P";
-            const canEdit = me ? isAdmin(me.role) : false;
             return (
-              <div
-                key={p.id}
-                className="group overflow-hidden rounded-xl border border-neutral-200/80 bg-white"
-              >
-                {/* Banner */}
-                <div className={`relative flex h-24 items-center justify-center overflow-hidden ${color}`}>
+              <div key={p.id} className="overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
+                {/* Square image */}
+                <div className={`relative aspect-square flex items-center justify-center overflow-hidden ${color}`}>
                   {p.logo ? (
                     <img src={p.logo} alt={p.name} className="h-full w-full object-cover" />
                   ) : (
-                    <span className="select-none text-4xl font-bold text-white/60">{initial}</span>
+                    <span className="select-none text-7xl font-bold text-white/50">{initial}</span>
                   )}
-                  {canEdit && (
-                    <div
-                      className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 transition-colors group-hover:bg-black/20"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        onClick={() => { pendingUploadIdRef.current = p.id; imageInputRef.current?.click(); }}
-                        disabled={uploadingId === p.id}
-                        className="flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-neutral-700 opacity-0 transition-opacity hover:bg-white group-hover:opacity-100 disabled:opacity-50"
-                      >
-                        <Camera className="size-3" />
-                        {uploadingId === p.id ? "Uploading…" : p.logo ? "Change" : "Add Image"}
-                      </button>
-                      {p.logo && (
-                        <button
-                          onClick={() => handleRemoveLogo(p.id)}
-                          className="rounded-md bg-white/90 p-1 opacity-0 transition-opacity hover:bg-white group-hover:opacity-100"
-                        >
-                          <Trash2 className="size-3 text-red-500" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <div className="absolute bottom-2 left-2">
+                  <div className="absolute bottom-3 left-3">
                     <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${p.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
                       {p.isActive ? "Active" : "Inactive"}
                     </span>
                   </div>
-                  {canEdit && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
-                      className="absolute right-2 top-2 rounded-md bg-white/90 p-1 opacity-0 transition-opacity hover:bg-white group-hover:opacity-100"
-                      title="Delete property"
-                    >
-                      <Trash2 className="size-3 text-red-500" />
-                    </button>
-                  )}
                 </div>
 
-                {/* Body */}
+                {/* Card body */}
                 <div className="p-4">
                   <h3 className="text-sm font-semibold text-neutral-900">{p.name}</h3>
                   {p.description && (
-                    <p className="mt-0.5 line-clamp-1 text-xs text-neutral-400">{p.description}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-neutral-400">{p.description}</p>
                   )}
                   <div className="mt-3 flex items-center justify-between">
                     <span className="flex items-center gap-1 text-xs text-neutral-400">
@@ -307,7 +202,7 @@ export default function PropertiesPage() {
                       render={<Link href={`/dashboard/properties/${p.id}`} />}
                       className="h-7 gap-1 bg-neutral-900 px-2.5 text-xs text-white hover:bg-neutral-800"
                     >
-                      Open <ChevronRight className="size-3" />
+                      Open Property <ChevronRight className="size-3" />
                     </Button>
                   </div>
                 </div>
@@ -316,17 +211,6 @@ export default function PropertiesPage() {
           })}
         </div>
       )}
-
-      <input ref={imageInputRef} type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
-        title="Delete property?"
-        description={`"${deleteTarget?.name}" and all its venues, menus, and items will be permanently deleted. This cannot be undone.`}
-        onConfirm={handleDelete}
-        loading={deleting}
-      />
     </div>
   );
 }
