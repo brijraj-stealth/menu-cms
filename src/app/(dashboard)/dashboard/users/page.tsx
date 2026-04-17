@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface User {
   id: string;
@@ -32,6 +40,23 @@ const roleColors: Record<string, string> = {
   STAFF: "bg-gray-100 text-gray-600",
 };
 
+function TableSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      <div className="border-b bg-muted/40 px-4 py-2.75" />
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="flex animate-pulse items-center gap-4 border-b px-4 py-3.5 last:border-0">
+          <div className="h-4 w-28 rounded bg-muted" />
+          <div className="h-4 w-40 rounded bg-muted" />
+          <div className="h-5 w-16 rounded-full bg-muted" />
+          <div className="ml-auto h-5 w-14 rounded-full bg-muted" />
+          <div className="h-7 w-20 rounded bg-muted" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function UsersPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -42,7 +67,6 @@ export default function UsersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect STAFF away from this page
   useEffect(() => {
     if (status === "authenticated" && session.user.role === "STAFF") {
       router.replace("/dashboard");
@@ -85,6 +109,7 @@ export default function UsersPage() {
       ]);
       setOpen(false);
       setForm({ name: "", email: "", password: "", role: "STAFF" });
+      toast.success(`${json.data.name || json.data.email} added`);
     } finally {
       setSubmitting(false);
     }
@@ -102,8 +127,13 @@ export default function UsersPage() {
       </div>
 
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">All Users</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <h2 className="text-lg font-semibold">
+          All Users
+          {!loading && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">({users.length})</span>
+          )}
+        </h2>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setError(null); setForm({ name: "", email: "", password: "", role: "STAFF" }); } }}>
           <DialogTrigger
             render={
               <Button size="sm">
@@ -118,16 +148,17 @@ export default function UsersPage() {
             </DialogHeader>
             <form onSubmit={handleCreate} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Name</label>
+                <label className="text-sm font-medium">Name *</label>
                 <Input
                   placeholder="Full name"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   required
+                  autoFocus
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Email</label>
+                <label className="text-sm font-medium">Email *</label>
                 <Input
                   type="email"
                   placeholder="user@example.com"
@@ -137,7 +168,7 @@ export default function UsersPage() {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Password</label>
+                <label className="text-sm font-medium">Password *</label>
                 <Input
                   type="password"
                   placeholder="Min. 8 characters"
@@ -148,15 +179,19 @@ export default function UsersPage() {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium">Role</label>
-                <select
-                  className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                <Select
                   value={form.role}
-                  onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+                  onValueChange={(val) => val && setForm((f) => ({ ...f, role: val }))}
                 >
-                  <option value="STAFF">Staff</option>
-                  <option value="ADMIN">Admin</option>
-                  <option value="SUPER_ADMIN">Super Admin</option>
-                </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="STAFF">Staff</SelectItem>
+                    <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <DialogFooter>
@@ -170,11 +205,14 @@ export default function UsersPage() {
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
+        <TableSkeleton />
       ) : users.length === 0 ? (
-        <div className="rounded-lg border border-dashed py-12 text-center">
+        <div className="rounded-lg border border-dashed py-14 text-center">
           <Users className="mx-auto mb-3 size-8 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">No users yet.</p>
+          <p className="text-sm font-medium text-muted-foreground">No users yet</p>
+          <Button size="sm" className="mt-4" onClick={() => setOpen(true)}>
+            <Plus /> Invite your first user
+          </Button>
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border">

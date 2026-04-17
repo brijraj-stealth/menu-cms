@@ -3,8 +3,17 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { ArrowLeft, Plus, Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +67,33 @@ interface AccessData {
   menuAccess: MenuAccess[];
 }
 
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function PageSkeleton() {
+  return (
+    <div className="max-w-3xl">
+      <div className="mb-4 h-8 w-24 animate-pulse rounded bg-muted" />
+      <div className="mb-6 flex items-center gap-3">
+        <div className="size-10 animate-pulse rounded-full bg-muted" />
+        <div>
+          <div className="h-5 w-36 animate-pulse rounded bg-muted" />
+          <div className="mt-1.5 h-4 w-48 animate-pulse rounded bg-muted" />
+        </div>
+      </div>
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="mb-6 rounded-xl border">
+          <div className="border-b bg-muted/30 px-4 py-3">
+            <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="px-4 py-3">
+            <div className="h-4 w-48 animate-pulse rounded bg-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Permission Checkbox Row ──────────────────────────────────────────────────
 
 function PermissionCheckboxes({
@@ -82,7 +118,7 @@ function PermissionCheckboxes({
                   : [...permissions, p];
                 onChange(next);
               }}
-              className="size-3.5 rounded accent-slate-900"
+              className="size-3.5 rounded accent-current"
             />
             {p}
           </label>
@@ -126,18 +162,18 @@ function AddAccessRow({
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed bg-muted/30 p-3">
-      <select
-        className="h-7 rounded-md border border-input bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring/50"
-        value={targetId}
-        onChange={(e) => setTargetId(e.target.value)}
-      >
-        <option value="">Select {label}…</option>
-        {available.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
+      <Select value={targetId} onValueChange={(val) => val && setTargetId(val)}>
+        <SelectTrigger size="sm" className="min-w-40">
+          <SelectValue placeholder={`Select ${label}…`} />
+        </SelectTrigger>
+        <SelectContent>
+          {available.map((o) => (
+            <SelectItem key={o.id} value={o.id}>
+              {o.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <PermissionCheckboxes permissions={permissions} onChange={setPermissions} />
       <Button
         size="xs"
@@ -184,7 +220,7 @@ function AccessTable<T extends { id: string; permissions: Permission[] }>({
   addOptions: { id: string; name: string }[];
   existingIds: string[];
   onPermissionChange: (row: T, perms: Permission[]) => Promise<void>;
-  onRemove: (row: T) => Promise<void>;
+  onRemove: (row: T) => void;
   onAdd: (targetId: string, permissions: Permission[]) => Promise<void>;
 }) {
   return (
@@ -202,7 +238,7 @@ function AccessTable<T extends { id: string; permissions: Permission[] }>({
               key={row.id}
               className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
             >
-              <span className="min-w-[140px] text-sm font-medium">
+              <span className="min-w-35 text-sm font-medium">
                 {getName(row)}
               </span>
               <PermissionCheckboxes
@@ -240,10 +276,18 @@ function AccessTable<T extends { id: string; permissions: Permission[] }>({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const roleColors: Record<string, string> = {
+  SUPER_ADMIN: "bg-purple-100 text-purple-700",
+  ADMIN: "bg-blue-100 text-blue-700",
+  STAFF: "bg-gray-100 text-gray-600",
+};
+
 export default function UserAccessPage() {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<AccessData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [removeTarget, setRemoveTarget] = useState<{ type: string; id: string; name: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const fetchData = useCallback(async () => {
     const res = await fetch(`/api/users/${id}/access`);
@@ -268,28 +312,27 @@ export default function UserAccessPage() {
       body: JSON.stringify({ type, targetId, permissions }),
     });
     fetchData();
+    toast.success("Access updated");
   }
 
-  async function removeAccess(
-    type: "property" | "venue" | "menu",
-    targetId: string
-  ) {
-    if (!confirm(`Remove this ${type} access?`)) return;
-    await fetch(`/api/users/${id}/access`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, targetId }),
-    });
-    fetchData();
+  async function handleRemoveAccess() {
+    if (!removeTarget) return;
+    setRemoving(true);
+    try {
+      await fetch(`/api/users/${id}/access`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: removeTarget.type, targetId: removeTarget.id }),
+      });
+      fetchData();
+      toast.success("Access removed");
+    } finally {
+      setRemoving(false);
+      setRemoveTarget(null);
+    }
   }
 
-  if (loading) {
-    return (
-      <div className="py-20 text-center text-sm text-muted-foreground">
-        Loading…
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton />;
 
   if (!data) {
     return (
@@ -301,16 +344,8 @@ export default function UserAccessPage() {
 
   const { user, properties, propertyAccess, venueAccess, menuAccess } = data;
 
-  // Build options for venue selector (all venues from all properties)
   const allVenues = properties.flatMap((p) => p.venues);
-  // Build options for menu selector (all menus from all venues)
   const allMenus = allVenues.flatMap((v) => v.menus);
-
-  const roleColors: Record<string, string> = {
-    SUPER_ADMIN: "bg-purple-100 text-purple-700",
-    ADMIN: "bg-blue-100 text-blue-700",
-    STAFF: "bg-gray-100 text-gray-600",
-  };
 
   return (
     <div className="max-w-3xl">
@@ -318,11 +353,11 @@ export default function UserAccessPage() {
       <Button
         variant="ghost"
         size="sm"
-        render={<Link href="/dashboard" />}
+        render={<Link href="/dashboard/users" />}
         className="-ml-2 mb-4"
       >
         <ArrowLeft className="size-4" />
-        Back to Dashboard
+        Users
       </Button>
 
       {/* User info */}
@@ -357,7 +392,9 @@ export default function UserAccessPage() {
           onPermissionChange={(row, perms) =>
             saveAccess("property", row.property.id, perms)
           }
-          onRemove={(row) => removeAccess("property", row.property.id)}
+          onRemove={(row) =>
+            setRemoveTarget({ type: "property", id: row.property.id, name: row.property.name })
+          }
           onAdd={(targetId, perms) => saveAccess("property", targetId, perms)}
         />
 
@@ -382,7 +419,9 @@ export default function UserAccessPage() {
           onPermissionChange={(row, perms) =>
             saveAccess("venue", row.venue.id, perms)
           }
-          onRemove={(row) => removeAccess("venue", row.venue.id)}
+          onRemove={(row) =>
+            setRemoveTarget({ type: "venue", id: row.venue.id, name: row.venue.name })
+          }
           onAdd={(targetId, perms) => saveAccess("venue", targetId, perms)}
         />
 
@@ -418,10 +457,22 @@ export default function UserAccessPage() {
           onPermissionChange={(row, perms) =>
             saveAccess("menu", row.menu.id, perms)
           }
-          onRemove={(row) => removeAccess("menu", row.menu.id)}
+          onRemove={(row) =>
+            setRemoveTarget({ type: "menu", id: row.menu.id, name: row.menu.name })
+          }
           onAdd={(targetId, perms) => saveAccess("menu", targetId, perms)}
         />
       </div>
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(v) => { if (!v) setRemoveTarget(null); }}
+        title="Remove access?"
+        description={`Access to "${removeTarget?.name}" will be revoked. The user will no longer be able to perform actions on this ${removeTarget?.type}.`}
+        confirmLabel="Remove"
+        onConfirm={handleRemoveAccess}
+        loading={removing}
+      />
     </div>
   );
 }

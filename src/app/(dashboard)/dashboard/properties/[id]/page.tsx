@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   ArrowLeft, Plus, Pencil, Trash2, MapPin, ChevronRight,
 } from "lucide-react";
@@ -12,6 +13,7 @@ import {
   DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { type MeData, isAdmin, canOnProperty } from "@/lib/permissions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +34,33 @@ interface Venue {
   isActive: boolean;
   propertyId: string;
   _count: { menus: number };
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function PageSkeleton() {
+  return (
+    <div className="max-w-3xl">
+      <div className="mb-6 h-8 w-24 animate-pulse rounded bg-muted" />
+      <div className="mb-8 rounded-xl border p-5">
+        <div className="h-6 w-48 animate-pulse rounded bg-muted" />
+        <div className="mt-2 h-4 w-64 animate-pulse rounded bg-muted" />
+      </div>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="h-6 w-24 animate-pulse rounded bg-muted" />
+        <div className="h-8 w-24 animate-pulse rounded bg-muted" />
+      </div>
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="mb-2 flex animate-pulse items-center gap-4 rounded-xl border p-4">
+          <div className="flex-1">
+            <div className="h-4 w-32 rounded bg-muted" />
+            <div className="mt-2 h-3 w-48 rounded bg-muted" />
+          </div>
+          <div className="h-7 w-20 rounded bg-muted" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ─── Venue Form Dialog ────────────────────────────────────────────────────────
@@ -86,6 +115,7 @@ function VenueDialog({
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               required
+              autoFocus
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -129,6 +159,8 @@ export default function PropertyPage() {
   const [editingProperty, setEditingProperty] = useState(false);
   const [propForm, setPropForm] = useState({ name: "", description: "" });
   const [propSaving, setPropSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Venue | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const [meRes, propRes, venueRes] = await Promise.all([
@@ -160,7 +192,13 @@ export default function PropertyPage() {
       body: JSON.stringify(propForm),
     });
     const json = await res.json();
-    if (json.data) { setProperty(json.data); setEditingProperty(false); }
+    if (json.data) {
+      setProperty(json.data);
+      setEditingProperty(false);
+      toast.success("Property updated");
+    } else {
+      toast.error("Failed to update property");
+    }
     setPropSaving(false);
   }
 
@@ -174,6 +212,7 @@ export default function PropertyPage() {
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Failed to create venue");
     setVenues((prev) => [...prev, json.data]);
+    toast.success(`"${json.data.name}" created`);
   }
 
   // ── Venue edit ──
@@ -188,18 +227,28 @@ export default function PropertyPage() {
     if (!res.ok) throw new Error(json.error ?? "Failed to update venue");
     setVenues((prev) => prev.map((v) => (v.id === editingVenue.id ? json.data : v)));
     setEditingVenue(null);
+    toast.success(`"${json.data.name}" updated`);
   }
 
   // ── Venue delete ──
-  async function deleteVenue(venueId: string) {
-    if (!confirm("Delete this venue? All menus and items inside will be removed.")) return;
-    const res = await fetch(`/api/venues/${venueId}`, { method: "DELETE" });
-    if (res.ok) setVenues((prev) => prev.filter((v) => v.id !== venueId));
+  async function handleDeleteVenue() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/venues/${deleteTarget.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setVenues((prev) => prev.filter((v) => v.id !== deleteTarget.id));
+        toast.success(`"${deleteTarget.name}" deleted`);
+      } else {
+        toast.error("Failed to delete venue");
+      }
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
   }
 
-  if (loading) {
-    return <div className="py-20 text-center text-sm text-muted-foreground">Loading…</div>;
-  }
+  if (loading) return <PageSkeleton />;
 
   if (!property) {
     return (
@@ -233,6 +282,7 @@ export default function PropertyPage() {
                 value={propForm.name}
                 onChange={(e) => setPropForm((f) => ({ ...f, name: e.target.value }))}
                 required
+                autoFocus
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -306,11 +356,13 @@ export default function PropertyPage() {
         </div>
 
         {venues.length === 0 ? (
-          <div className="rounded-lg border border-dashed py-12 text-center">
+          <div className="rounded-lg border border-dashed py-14 text-center">
             <MapPin className="mx-auto mb-3 size-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No venues yet.</p>
+            <p className="text-sm font-medium text-muted-foreground">No venues yet</p>
             {canAddVenue && (
-              <p className="mt-1 text-xs text-muted-foreground">Add your first venue to get started.</p>
+              <Button size="sm" className="mt-4" onClick={() => { setEditingVenue(null); setVenueDialogOpen(true); }}>
+                <Plus /> Add your first venue
+              </Button>
             )}
           </div>
         ) : (
@@ -355,7 +407,7 @@ export default function PropertyPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => deleteVenue(v.id)}
+                        onClick={() => setDeleteTarget(v)}
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="size-3.5" />
@@ -384,6 +436,15 @@ export default function PropertyPage() {
         onOpenChange={setVenueDialogOpen}
         initial={editingVenue ? { name: editingVenue.name, description: editingVenue.description ?? "", address: editingVenue.address ?? "" } : null}
         onSave={editingVenue ? updateVenue : createVenue}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
+        title="Delete venue?"
+        description={`"${deleteTarget?.name}" and all its menus and items will be permanently deleted. This cannot be undone.`}
+        onConfirm={handleDeleteVenue}
+        loading={deleting}
       />
     </div>
   );

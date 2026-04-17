@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,12 +14,32 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 interface Allergen {
   id: string;
   name: string;
   description: string | null;
   icon: string | null;
+}
+
+function TableSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      <div className="border-b bg-muted/40 px-4 py-2.75" />
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="flex animate-pulse items-center gap-4 border-b px-4 py-3.5 last:border-0">
+          <div className="size-8 rounded bg-muted" />
+          <div className="h-4 w-28 rounded bg-muted" />
+          <div className="h-4 w-48 rounded bg-muted" />
+          <div className="ml-auto flex gap-1">
+            <div className="size-7 rounded bg-muted" />
+            <div className="size-7 rounded bg-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function AllergensPage() {
@@ -30,6 +51,8 @@ export default function AllergensPage() {
   const [form, setForm] = useState({ name: "", description: "", icon: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Allergen | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const canManage =
     session?.user.role === "SUPER_ADMIN" || session?.user.role === "ADMIN";
@@ -73,15 +96,27 @@ export default function AllergensPage() {
       if (!res.ok) { setError(json.error ?? "Failed to save allergen"); return; }
       await fetchAllergens();
       setOpen(false);
+      toast.success(editing ? `"${form.name}" updated` : `"${form.name}" created`);
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this allergen? It will be removed from all menu items.")) return;
-    await fetch(`/api/allergens/${id}`, { method: "DELETE" });
-    setAllergens((prev) => prev.filter((a) => a.id !== id));
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/allergens/${deleteTarget.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setAllergens((prev) => prev.filter((a) => a.id !== deleteTarget.id));
+        toast.success(`"${deleteTarget.name}" deleted`);
+      } else {
+        toast.error("Failed to delete allergen");
+      }
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
   }
 
   return (
@@ -98,7 +133,7 @@ export default function AllergensPage() {
 
       <div className="mb-4 flex items-center justify-between">
         <span className="text-sm text-muted-foreground">
-          {allergens.length} allergen{allergens.length !== 1 ? "s" : ""}
+          {!loading && `${allergens.length} allergen${allergens.length !== 1 ? "s" : ""}`}
         </span>
         {canManage && (
           <Dialog open={open} onOpenChange={setOpen}>
@@ -128,6 +163,7 @@ export default function AllergensPage() {
                       value={form.name}
                       onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                       required
+                      autoFocus
                     />
                   </div>
                 </div>
@@ -152,11 +188,16 @@ export default function AllergensPage() {
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
+        <TableSkeleton />
       ) : allergens.length === 0 ? (
-        <div className="rounded-lg border border-dashed py-12 text-center">
+        <div className="rounded-lg border border-dashed py-14 text-center">
           <Leaf className="mx-auto mb-3 size-8 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">No allergens yet.</p>
+          <p className="text-sm font-medium text-muted-foreground">No allergens yet</p>
+          {canManage && (
+            <Button size="sm" className="mt-4" onClick={openCreate}>
+              <Plus /> Add your first allergen
+            </Button>
+          )}
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border">
@@ -187,7 +228,7 @@ export default function AllergensPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() => handleDelete(a.id)}
+                          onClick={() => setDeleteTarget(a)}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="size-3.5" />
@@ -202,6 +243,15 @@ export default function AllergensPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
+        title="Delete allergen?"
+        description={`"${deleteTarget?.name}" will be removed from all menu items. This cannot be undone.`}
+        onConfirm={handleDelete}
+        loading={deleting}
+      />
     </div>
   );
 }
