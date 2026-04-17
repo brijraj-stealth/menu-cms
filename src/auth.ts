@@ -56,4 +56,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
+  events: {
+    async signIn({ user }) {
+      if (!user.id) return;
+      await prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: "logged in",
+          entityType: "user",
+          entityId: user.id,
+          metadata: { entityName: user.name ?? user.email ?? "Unknown" },
+        },
+      }).catch(() => {});
+    },
+  },
 });

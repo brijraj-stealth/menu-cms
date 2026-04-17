@@ -30,13 +30,14 @@ interface ActivityLog {
   user: LogUser;
 }
 
-type TabType = "all" | "items" | "menus" | "venues" | "properties";
+type TabType = "all" | "items" | "menus" | "venues" | "users";
 
 const TABS: { key: TabType; label: string }[] = [
   { key: "all", label: "All" },
   { key: "items", label: "Items" },
   { key: "menus", label: "Menus" },
   { key: "venues", label: "Venues" },
+  { key: "users", label: "Users" },
 ];
 
 const USER_COLORS = [
@@ -141,11 +142,19 @@ export default function AuditLogPage() {
   const [tab, setTab] = useState<TabType>("all");
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/activity-log?type=${tab}`)
-      .then((r) => r.json())
-      .then((j) => { if (j.data) setLogs(j.data); })
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    function load(initial: boolean) {
+      if (initial) setLoading(true);
+      fetch(`/api/activity-log?type=${tab}`)
+        .then((r) => r.json())
+        .then((j) => { if (!cancelled && j.data) setLogs(j.data); })
+        .finally(() => { if (initial) setLoading(false); });
+    }
+
+    load(true);
+    const interval = setInterval(() => load(false), 15000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [tab]);
 
   const grouped: { label: string; logs: ActivityLog[] }[] = [];
@@ -247,8 +256,10 @@ export default function AuditLogPage() {
                           <div className="flex items-baseline justify-between gap-4">
                             <p className="text-[13px] text-neutral-700">
                               <span className="font-semibold text-neutral-900">{name}</span>
-                              {" "}{action} {type}{" "}
-                              <span className="font-semibold text-neutral-900">{entity}</span>
+                              {" "}{action}
+                              {log.entityType !== "user" && (
+                                <>{" "}{type}{" "}<span className="font-semibold text-neutral-900">{entity}</span></>
+                              )}
                             </p>
                             <span className="shrink-0 text-[12px] tabular-nums text-neutral-400">
                               {formatTime(log.createdAt)}
