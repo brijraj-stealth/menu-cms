@@ -119,17 +119,22 @@ export async function PUT(
 
     if (before) {
       const tracked = ["name", "description", "basePrice", "image", "isActive", "sortOrder"] as const;
+      type JsonVal = string | number | boolean | null;
       // Normalize Prisma Decimal to number so the comparison works correctly
-      const beforeNorm: Record<string, unknown> = {
-        ...before,
+      const beforeNorm: Record<string, JsonVal> = {
+        name: before.name,
+        description: before.description,
         basePrice: before.basePrice !== null ? Number(before.basePrice) : null,
+        image: before.image,
+        isActive: before.isActive,
+        sortOrder: before.sortOrder,
       };
-      const changes: { field: string; old: unknown; new: unknown }[] = tracked
+      const changes: { field: string; old: JsonVal; new: JsonVal }[] = tracked
         .filter((f) => {
-          const after = (itemData as Record<string, unknown>)[f];
+          const after = (itemData as Record<string, JsonVal>)[f];
           return after !== undefined && beforeNorm[f] !== after;
         })
-        .map((f) => ({ field: f, old: beforeNorm[f] ?? null, new: (itemData as Record<string, unknown>)[f] ?? null }));
+        .map((f) => ({ field: f, old: beforeNorm[f] ?? null, new: (itemData as Record<string, JsonVal>)[f] ?? null }));
 
       // Track allergen changes
       if (allergenIds !== undefined) {
