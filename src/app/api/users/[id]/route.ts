@@ -129,22 +129,21 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
 
-  try {
-    // Soft delete — set isActive: false
-    const user = await prisma.user.update({
-      where: { id },
-      data: { isActive: false },
-      select: { id: true, isActive: true },
-    });
+  if (id === session.user.id) {
+    return Response.json({ error: "Cannot delete your own account" }, { status: 400 });
+  }
 
-    return Response.json({ data: user });
+  try {
+    await prisma.user.delete({ where: { id } });
+    return Response.json({ data: { success: true } });
   } catch {
-    return Response.json({ error: "Failed to deactivate user" }, { status: 500 });
+    return Response.json({ error: "Failed to delete user" }, { status: 500 });
   }
 }
