@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Copy, ImageIcon, LayoutGrid,
+  ArrowLeft, Camera, ChevronDown, ChevronRight, ChevronUp, Copy, ImageIcon, LayoutGrid,
   LayoutList, Pencil, Phone, Plus, Trash2, Video, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ interface Category {
 interface MenuVideo { id: string; url: string; title: string | null; sortOrder: number }
 interface MenuFeaturedImage { id: string; url: string; title: string | null; sortOrder: number }
 interface MenuData {
-  id: string; name: string; description: string | null;
+  id: string; name: string; description: string | null; image: string | null;
   slug: string | null; phoneNumber: string | null; phoneButtonText: string | null;
   videoSectionHeader: string | null; videoSectionSubheader: string | null;
   featuredSectionHeader: string | null; featuredSectionSubheader: string | null;
@@ -596,6 +596,9 @@ export default function MenuBuilderPage() {
   const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
   const [editingVideoTitle, setEditingVideoTitle] = useState("");
 
+  const [uploadingMenuImage, setUploadingMenuImage] = useState(false);
+  const menuImageInputRef = useRef<HTMLInputElement>(null);
+
   const [featuredImageTitle, setFeaturedImageTitle] = useState("");
   const [uploadingFeaturedImage, setUploadingFeaturedImage] = useState(false);
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
@@ -637,6 +640,31 @@ export default function MenuBuilderPage() {
     if (json.data) { setMenuData((p) => p ? { ...p, ...json.data } : p); setEditingMenuInfo(false); toast.success("Menu updated"); }
     else toast.error(json.error ?? "Failed to update menu");
     setMenuSaving(false);
+  }
+
+  async function handleMenuImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingMenuImage(true);
+    const toastId = toast.loading("Uploading image…");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      const uploadJson = await uploadRes.json();
+      if (!uploadRes.ok) { toast.error(uploadJson.error ?? "Upload failed", { id: toastId }); return; }
+      const saveRes = await fetch(`/api/menus/${menuId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: uploadJson.url }) });
+      if (!saveRes.ok) { toast.error("Failed to save image", { id: toastId }); return; }
+      setMenuData((p) => p ? { ...p, image: uploadJson.url } : p);
+      toast.success("Menu photo updated", { id: toastId });
+    } finally { setUploadingMenuImage(false); e.target.value = ""; }
+  }
+
+  async function handleRemoveMenuImage() {
+    const toastId = toast.loading("Removing image…");
+    const res = await fetch(`/api/menus/${menuId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: null }) });
+    if (res.ok) { setMenuData((p) => p ? { ...p, image: null } : p); toast.success("Image removed", { id: toastId }); }
+    else toast.error("Failed to remove image", { id: toastId });
   }
 
   // ─── Section headers ───────────────────────────────────────────────────────
@@ -887,8 +915,37 @@ export default function MenuBuilderPage() {
         <ArrowLeft className="size-4" /> {menuData.venue.name}
       </Button>
 
+      {/* Hidden file input for menu image */}
+      <input ref={menuImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleMenuImageChange} />
+
       {/* Menu header card */}
-      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-6">
+      <div className="mb-6 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+        {/* Cover photo strip */}
+        {canEdit && (
+          <div
+            onClick={() => !uploadingMenuImage && menuImageInputRef.current?.click()}
+            className={`group relative flex cursor-pointer items-center justify-center overflow-hidden transition-colors ${menuData.image ? "h-40" : "h-16 border-b border-dashed border-neutral-200 bg-neutral-50 hover:bg-neutral-100"}`}
+          >
+            {menuData.image ? (
+              <>
+                <img src={menuData.image} alt="Menu cover" className="h-full w-full object-cover" />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/25 group-hover:opacity-100">
+                  <span className="flex items-center gap-1.5 rounded-md bg-black/60 px-2.5 py-1 text-xs text-white"><Camera className="size-3.5" /> Change cover photo</span>
+                </div>
+              </>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs text-neutral-400"><Camera className="size-3.5" />{uploadingMenuImage ? "Uploading…" : "Add cover photo"}</span>
+            )}
+            {uploadingMenuImage && <div className="absolute inset-0 flex items-center justify-center bg-white/70"><span className="text-xs text-neutral-500">Uploading…</span></div>}
+          </div>
+        )}
+        {!canEdit && menuData.image && (
+          <div className="h-40 overflow-hidden">
+            <img src={menuData.image} alt="Menu cover" className="h-full w-full object-cover" />
+          </div>
+        )}
+
+        <div className="p-6">
         {editingMenuInfo ? (
           <form onSubmit={saveMenuInfo} className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
@@ -916,6 +973,7 @@ export default function MenuBuilderPage() {
             <div className="flex gap-2 pt-1">
               <Button type="submit" size="sm" disabled={menuSaving} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">{menuSaving ? "Saving…" : "Save Changes"}</Button>
               <Button type="button" variant="ghost" size="sm" onClick={() => setEditingMenuInfo(false)}>Cancel</Button>
+              {menuData.image && <button type="button" onClick={handleRemoveMenuImage} className="ml-auto text-xs text-red-500 hover:text-red-700">Remove cover photo</button>}
             </div>
           </form>
         ) : (
@@ -959,6 +1017,7 @@ export default function MenuBuilderPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Tabs */}

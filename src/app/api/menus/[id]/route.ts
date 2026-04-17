@@ -6,6 +6,7 @@ const updateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   isActive: z.boolean().optional(),
+  image: z.string().url().optional().nullable(),
   slug: z.string().min(1).regex(/^[a-z0-9-]+$/, "Slug may only contain lowercase letters, numbers, and hyphens").optional().nullable(),
   phoneNumber: z.string().optional().nullable(),
   phoneButtonText: z.string().optional().nullable(),
@@ -118,12 +119,12 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
 
-    const before = await prisma.menu.findUnique({ where: { id }, select: { name: true, description: true, isActive: true, slug: true, phoneNumber: true, phoneButtonText: true, videoSectionHeader: true, videoSectionSubheader: true, featuredSectionHeader: true, featuredSectionSubheader: true } });
+    const before = await prisma.menu.findUnique({ where: { id }, select: { name: true, description: true, isActive: true, image: true, slug: true, phoneNumber: true, phoneButtonText: true, videoSectionHeader: true, videoSectionSubheader: true, featuredSectionHeader: true, featuredSectionSubheader: true } });
 
     const menu = await prisma.menu.update({ where: { id }, data: parsed.data });
 
     if (before) {
-      const tracked = ["name", "description", "isActive", "slug", "phoneNumber", "phoneButtonText", "videoSectionHeader", "videoSectionSubheader", "featuredSectionHeader", "featuredSectionSubheader"] as const;
+      const tracked = ["name", "description", "isActive", "image", "slug", "phoneNumber", "phoneButtonText", "videoSectionHeader", "videoSectionSubheader", "featuredSectionHeader", "featuredSectionSubheader"] as const;
       const changes = tracked
         .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
         .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));

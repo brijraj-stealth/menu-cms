@@ -139,6 +139,7 @@ model Menu {
   featuredSectionHeader    String?
   featuredSectionSubheader String?
   scheduleText             String?
+  image                    String?
   isActive                 Boolean  @default(true)
   venueId                  String
   createdAt                DateTime @default(now())

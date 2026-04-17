@@ -111,14 +111,29 @@ function EditPropertyDialog({
       <DialogContent>
         <DialogHeader><DialogTitle>Edit Property</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={onUploadImage} disabled={uploading} className="h-7 gap-1.5 px-2.5 text-xs">
-              <Camera className="size-3.5" />{uploading ? "Uploading…" : property.logo ? "Change Image" : "Upload Image"}
-            </Button>
-            {property.logo && (
-              <Button type="button" variant="outline" size="sm" onClick={onRemoveImage} className="h-7 gap-1.5 px-2.5 text-xs text-red-600 hover:border-red-200 hover:bg-red-50">
-                <Trash2 className="size-3.5" /> Remove Image
-              </Button>
+          {/* Photo preview */}
+          <div>
+            <div
+              onClick={!uploading ? onUploadImage : undefined}
+              className={`group relative flex h-36 w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 transition-colors ${property.logo ? "border-neutral-200" : "border-dashed border-neutral-200 bg-neutral-50 hover:border-neutral-300"}`}
+            >
+              {property.logo ? (
+                <>
+                  <img src={property.logo} alt="Property photo" className="h-full w-full object-cover" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/25 group-hover:opacity-100">
+                    <span className="flex items-center gap-1.5 rounded-md bg-black/60 px-2.5 py-1 text-xs text-white"><Camera className="size-3.5" /> Change photo</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-neutral-400">
+                  <Camera className="size-6" />
+                  <span className="text-xs">{uploading ? "Uploading…" : "Click to upload photo"}</span>
+                </div>
+              )}
+              {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/70"><span className="text-xs text-neutral-500">Uploading…</span></div>}
+            </div>
+            {property.logo && !uploading && (
+              <button type="button" onClick={onRemoveImage} className="mt-1.5 text-xs text-red-500 hover:text-red-700">Remove photo</button>
             )}
           </div>
           <div className="flex flex-col gap-1.5">
