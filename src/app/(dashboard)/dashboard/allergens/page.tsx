@@ -138,7 +138,11 @@ export default function AllergensPage() {
         {canManage && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger
-              render={<Button size="sm"><Plus />Add Allergen</Button>}
+              render={
+                <Button size="sm" className="h-10 gap-2 bg-neutral-900 px-5 text-white hover:bg-neutral-700">
+                  <Plus className="size-4" /> Add Allergen
+                </Button>
+              }
               onClick={openCreate}
             />
             <DialogContent>
@@ -194,8 +198,9 @@ export default function AllergensPage() {
           <Leaf className="mx-auto mb-3 size-8 text-muted-foreground/40" />
           <p className="text-sm font-medium text-muted-foreground">No allergens yet</p>
           {canManage && (
-            <Button size="sm" className="mt-4" onClick={openCreate}>
-              <Plus /> Add your first allergen
+            <Button size="sm" onClick={openCreate}
+              className="mt-4 h-10 gap-2 bg-neutral-900 px-5 text-white hover:bg-neutral-700">
+              <Plus className="size-4" /> Add your first allergen
             </Button>
           )}
         </div>
