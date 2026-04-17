@@ -37,7 +37,6 @@ const TABS: { key: TabType; label: string }[] = [
   { key: "items", label: "Items" },
   { key: "menus", label: "Menus" },
   { key: "venues", label: "Venues" },
-  { key: "properties", label: "Properties" },
 ];
 
 const USER_COLORS = [
@@ -87,17 +86,20 @@ function actionSentence(log: ActivityLog) {
 
 function SkeletonLog() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {[...Array(3)].map((_, gi) => (
         <div key={gi}>
-          <div className="mb-3 h-4 w-16 animate-pulse rounded bg-neutral-100" />
-          <div className="space-y-4">
+          <div className="mb-4 h-3.5 w-14 animate-pulse rounded bg-neutral-100" />
+          <div className="divide-y divide-neutral-100">
             {[...Array(2)].map((_, i) => (
-              <div key={i} className="flex items-start gap-3">
+              <div key={i} className="flex items-start gap-3 py-3 first:pt-0">
                 <div className="size-7 shrink-0 animate-pulse rounded-full bg-neutral-100" />
-                <div className="flex-1">
-                  <div className="h-4 w-64 animate-pulse rounded bg-neutral-100" />
-                  <div className="mt-2 h-8 w-full animate-pulse rounded bg-neutral-100" />
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <div className="h-3.5 w-72 animate-pulse rounded bg-neutral-100" />
+                    <div className="h-3 w-10 animate-pulse rounded bg-neutral-100" />
+                  </div>
+                  <div className="h-9 w-full animate-pulse rounded-md bg-neutral-100" />
                 </div>
               </div>
             ))}
@@ -146,7 +148,6 @@ export default function AuditLogPage() {
       .finally(() => setLoading(false));
   }, [tab]);
 
-  // Group logs by date label
   const grouped: { label: string; logs: ActivityLog[] }[] = [];
   for (const log of logs) {
     const label = formatDateGroup(log.createdAt);
@@ -160,41 +161,48 @@ export default function AuditLogPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
+      {/* Header row: breadcrumb+title on left, tabs+export on right */}
+      <div className="mb-6 flex items-start justify-between gap-6">
         <div>
-          <p className="text-[12px] text-neutral-400">System</p>
-          <h1 className="mt-0.5 text-2xl font-semibold text-neutral-900">Audit log</h1>
+          <div className="mb-1 flex items-center gap-1.5 text-[12px] text-neutral-400">
+            <History className="size-3.5" />
+            <span>System</span>
+          </div>
+          <h1 className="text-2xl font-semibold text-neutral-900">Audit log</h1>
           <p className="mt-1 text-sm text-neutral-500">
             Every change to properties, venues, menus and items — append-only.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => exportCSV(logs)}
-          disabled={logs.length === 0}
-          className="h-8 gap-1.5 px-3 text-[13px]"
-        >
-          <Download className="size-3.5" /> Export CSV
-        </Button>
-      </div>
 
-      {/* Tabs */}
-      <div className="mb-6 flex items-center gap-1">
-        {TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
-              tab === key
-                ? "bg-neutral-900 text-white"
-                : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
-            }`}
+        {/* Tabs + Export */}
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg bg-neutral-100 p-1">
+            {TABS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`rounded-md px-3 py-1 text-[13px] font-medium transition-colors ${
+                  tab === key
+                    ? "bg-neutral-900 text-white shadow-sm"
+                    : "text-neutral-500 hover:text-neutral-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportCSV(logs)}
+            disabled={logs.length === 0}
+            className="h-8 gap-1.5 px-3 text-[13px]"
           >
-            {label}
-          </button>
-        ))}
+            <Download className="size-3.5" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Divider */}
@@ -217,7 +225,7 @@ export default function AuditLogPage() {
           {grouped.map(({ label, logs: groupLogs }) => (
             <div key={label}>
               <p className="mb-4 text-[13px] font-medium text-neutral-400">{label}</p>
-              <div className="space-y-0 divide-y divide-neutral-100">
+              <div className="divide-y divide-neutral-100">
                 {groupLogs.map((log) => {
                   const { name, action, type, entity } = actionSentence(log);
                   const changes = log.metadata?.changes ?? [];
@@ -228,7 +236,9 @@ export default function AuditLogPage() {
                     <div key={log.id} className="py-3 first:pt-0">
                       <div className="flex items-start gap-3">
                         {/* Avatar */}
-                        <div className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${color}`}>
+                        <div
+                          className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${color}`}
+                        >
                           {initials}
                         </div>
 
@@ -251,11 +261,11 @@ export default function AuditLogPage() {
                               {changes.map((c, ci) => (
                                 <div
                                   key={ci}
-                                  className="flex items-center gap-3 border-b border-neutral-100 px-3 py-2 text-[12px] last:border-0 font-mono"
+                                  className="flex items-center gap-3 border-b border-neutral-100 px-3 py-2 text-[12px] font-mono last:border-0"
                                 >
                                   <span className="w-24 shrink-0 truncate text-neutral-400">{c.field}</span>
-                                  <span className="text-red-500 line-through">{String(c.old ?? "—")}</span>
-                                  <span className="text-neutral-400">›</span>
+                                  <span className="text-red-400 line-through">{String(c.old ?? "—")}</span>
+                                  <span className="text-neutral-300">›</span>
                                   <span className="text-emerald-600">{String(c.new ?? "—")}</span>
                                 </div>
                               ))}
