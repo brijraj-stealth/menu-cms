@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Building2, MapPin, Pencil, Trash2 } from "lucide-react";
+import { Plus, Building2, MapPin, Pencil, Trash2, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
@@ -63,6 +63,9 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const pendingUploadIdRef = useRef<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   async function fetchAll() {
     const [meRes, propsRes] = await Promise.all([fetch("/api/me"), fetch("/api/properties")]);
@@ -109,6 +112,48 @@ export default function DashboardPage() {
     } finally {
       setDeleting(false);
       setDeleteTarget(null);
+    }
+  }
+
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const id = pendingUploadIdRef.current;
+    if (!file || !id) return;
+    setUploadingId(id);
+    const toastId = toast.loading("Uploading image…");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      const uploadJson = await uploadRes.json();
+      if (!uploadRes.ok) { toast.error(uploadJson.error ?? "Upload failed", { id: toastId }); return; }
+      const saveRes = await fetch(`/api/properties/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logo: uploadJson.url }),
+      });
+      if (!saveRes.ok) { toast.error("Failed to save image", { id: toastId }); return; }
+      setProperties((prev) => prev.map((p) => p.id === id ? { ...p, logo: uploadJson.url } : p));
+      toast.success("Image updated", { id: toastId });
+    } finally {
+      setUploadingId(null);
+      pendingUploadIdRef.current = null;
+      e.target.value = "";
+    }
+  }
+
+  async function handleRemoveLogo(id: string) {
+    const toastId = toast.loading("Removing image…");
+    const res = await fetch(`/api/properties/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ logo: null }),
+    });
+    if (res.ok) {
+      setProperties((prev) => prev.map((p) => p.id === id ? { ...p, logo: null } : p));
+      toast.success("Image removed", { id: toastId });
+    } else {
+      toast.error("Failed to remove image", { id: toastId });
     }
   }
 
@@ -204,13 +249,37 @@ export default function DashboardPage() {
                 className="group cursor-pointer overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:border-neutral-400 hover:shadow-md"
               >
                 {/* Image / Banner */}
-                <div className={`relative flex h-32 items-center justify-center ${color}`}>
+                <div className={`relative flex h-32 items-center justify-center overflow-hidden ${color}`}>
                   {p.logo ? (
                     <img src={p.logo} alt={p.name} className="h-full w-full object-cover" />
                   ) : (
                     <span className="text-5xl font-bold text-white/70 select-none">{initial}</span>
                   )}
-                  {/* Hover actions */}
+                  {/* Image upload overlay */}
+                  {canEdit && (
+                    <div
+                      className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 transition-colors group-hover:bg-black/25"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() => { pendingUploadIdRef.current = p.id; imageInputRef.current?.click(); }}
+                        disabled={uploadingId === p.id}
+                        className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-neutral-700 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100 disabled:opacity-50"
+                      >
+                        <Camera className="size-3.5" />
+                        {uploadingId === p.id ? "Uploading…" : p.logo ? "Change Image" : "Add Image"}
+                      </button>
+                      {p.logo && (
+                        <button
+                          onClick={() => handleRemoveLogo(p.id)}
+                          className="rounded-lg bg-white/90 p-1.5 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100"
+                        >
+                          <Trash2 className="size-3.5 text-red-500" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {/* Edit/Delete buttons */}
                   <div
                     className="absolute right-2.5 top-2.5 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100"
                     onClick={(e) => e.stopPropagation()}
@@ -261,6 +330,8 @@ export default function DashboardPage() {
           })}
         </div>
       )}
+
+      <input ref={imageInputRef} type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
 
       <ConfirmDialog
         open={!!deleteTarget}

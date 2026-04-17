@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Plus, Pencil, Trash2, ChevronDown, ChevronRight,
+  ArrowLeft, Plus, Pencil, Trash2, ChevronDown, ChevronRight, ImageIcon, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +38,7 @@ interface MenuData {
 }
 interface ItemFormData {
   name: string; description: string; basePrice: number; isActive: boolean;
+  image: string | null;
   allergenIds: string[];
   variants: { id?: string; name: string; price: number; isActive: boolean }[];
 }
@@ -118,10 +119,13 @@ function ItemDialog({ open, onOpenChange, title, initial, allergens, onSave }: {
   onSave: (data: ItemFormData) => Promise<void>;
 }) {
   const [form, setForm] = useState({ name: "", description: "", basePrice: "", isActive: true });
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [variants, setVariants] = useState<VariantDraft[]>([]);
   const [selectedAllergenIds, setSelectedAllergenIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -129,13 +133,33 @@ function ItemDialog({ open, onOpenChange, title, initial, allergens, onSave }: {
         setForm({ name: initial.name, description: initial.description ?? "", basePrice: initial.basePrice, isActive: initial.isActive });
         setVariants(initial.variants.map((v) => ({ id: v.id, name: v.name, price: String(v.price), isActive: v.isActive })));
         setSelectedAllergenIds(initial.itemAllergens.map((ia) => ia.allergen.id));
+        setImageUrl(initial.image);
       } else {
         setForm({ name: "", description: "", basePrice: "", isActive: true });
-        setVariants([]); setSelectedAllergenIds([]);
+        setVariants([]); setSelectedAllergenIds([]); setImageUrl(null);
       }
       setError(null);
     }
   }, [open, initial]);
+
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    const toastId = toast.loading("Uploading image…");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const json = await res.json();
+      if (!res.ok) { toast.error(json.error ?? "Upload failed", { id: toastId }); return; }
+      setImageUrl(json.url);
+      toast.success("Image uploaded", { id: toastId });
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -150,6 +174,7 @@ function ItemDialog({ open, onOpenChange, title, initial, allergens, onSave }: {
     try {
       await onSave({
         name: form.name, description: form.description, basePrice: price, isActive: form.isActive,
+        image: imageUrl,
         allergenIds: selectedAllergenIds,
         variants: variants.map((v) => ({ ...(v.id ? { id: v.id } : {}), name: v.name, price: parseFloat(v.price), isActive: v.isActive })),
       });
@@ -166,6 +191,45 @@ function ItemDialog({ open, onOpenChange, title, initial, allergens, onSave }: {
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
+          {/* Image upload */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-neutral-700">Image</label>
+            <input ref={imageInputRef} type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+            {imageUrl ? (
+              <div className="group/img relative overflow-hidden rounded-xl">
+                <img src={imageUrl} alt="item" className="h-36 w-full object-cover" />
+                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 transition-colors group-hover/img:bg-black/30">
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-neutral-700 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover/img:opacity-100"
+                  >
+                    <ImageIcon className="size-3.5" /> Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl(null)}
+                    className="rounded-lg bg-white/90 p-1.5 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover/img:opacity-100"
+                  >
+                    <X className="size-3.5 text-red-500" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="flex h-28 w-full cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-neutral-200 bg-neutral-50 text-neutral-400 transition hover:border-neutral-400 hover:text-neutral-600 disabled:opacity-50"
+              >
+                <div className="flex flex-col items-center gap-1.5">
+                  <ImageIcon className="size-6" />
+                  <span className="text-xs">{uploadingImage ? "Uploading…" : "Click to upload image"}</span>
+                </div>
+              </button>
+            )}
+          </div>
+
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-neutral-700">Item name *</label>
@@ -506,6 +570,9 @@ export default function MenuBuilderPage() {
                                 <div className="mb-2 flex flex-col gap-1.5">
                                   {sub.items.map((item) => (
                                     <div key={item.id} className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white px-3.5 py-2.5">
+                                      {item.image && (
+                                        <img src={item.image} alt={item.name} className="mr-3 size-10 shrink-0 rounded-lg object-cover" />
+                                      )}
                                       <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2">
                                           <span className="text-sm font-medium text-neutral-900">{item.name}</span>

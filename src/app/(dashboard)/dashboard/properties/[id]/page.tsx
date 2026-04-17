@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Pencil, Trash2, MapPin, ChevronRight, BookOpen } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, MapPin, ChevronRight, BookOpen, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -27,6 +27,7 @@ interface Venue {
   name: string;
   description: string | null;
   address: string | null;
+  image: string | null;
   isActive: boolean;
   propertyId: string;
   _count: { menus: number };
@@ -142,6 +143,11 @@ export default function PropertyPage() {
   const [propSaving, setPropSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Venue | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingProp, setUploadingProp] = useState(false);
+  const [uploadingVenueId, setUploadingVenueId] = useState<string | null>(null);
+  const propImageInputRef = useRef<HTMLInputElement>(null);
+  const venueImageInputRef = useRef<HTMLInputElement>(null);
+  const pendingVenueUploadIdRef = useRef<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     const [meRes, propRes, venueRes] = await Promise.all([
@@ -227,6 +233,73 @@ export default function PropertyPage() {
     );
   }
 
+  async function handlePropImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingProp(true);
+    const toastId = toast.loading("Uploading image…");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      const uploadJson = await uploadRes.json();
+      if (!uploadRes.ok) { toast.error(uploadJson.error ?? "Upload failed", { id: toastId }); return; }
+      const saveRes = await fetch(`/api/properties/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logo: uploadJson.url }),
+      });
+      if (!saveRes.ok) { toast.error("Failed to save image", { id: toastId }); return; }
+      setProperty((prev) => prev ? { ...prev, logo: uploadJson.url } : prev);
+      toast.success("Image updated", { id: toastId });
+    } finally {
+      setUploadingProp(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleVenueImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const venueId = pendingVenueUploadIdRef.current;
+    if (!file || !venueId) return;
+    setUploadingVenueId(venueId);
+    const toastId = toast.loading("Uploading image…");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      const uploadJson = await uploadRes.json();
+      if (!uploadRes.ok) { toast.error(uploadJson.error ?? "Upload failed", { id: toastId }); return; }
+      const saveRes = await fetch(`/api/venues/${venueId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: uploadJson.url }),
+      });
+      if (!saveRes.ok) { toast.error("Failed to save image", { id: toastId }); return; }
+      setVenues((prev) => prev.map((v) => v.id === venueId ? { ...v, image: uploadJson.url } : v));
+      toast.success("Image updated", { id: toastId });
+    } finally {
+      setUploadingVenueId(null);
+      pendingVenueUploadIdRef.current = null;
+      e.target.value = "";
+    }
+  }
+
+  async function handleRemoveVenueImage(venueId: string) {
+    const toastId = toast.loading("Removing image…");
+    const res = await fetch(`/api/venues/${venueId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: null }),
+    });
+    if (res.ok) {
+      setVenues((prev) => prev.map((v) => v.id === venueId ? { ...v, image: null } : v));
+      toast.success("Image removed", { id: toastId });
+    } else {
+      toast.error("Failed to remove image", { id: toastId });
+    }
+  }
+
   const canEditProp = me ? canOnProperty(me, "EDIT", id) : false;
   const canAddVenue = me ? (isAdmin(me.role) || canOnProperty(me, "ADD", id)) : false;
   const canDeleteVenue = me ? isAdmin(me.role) : false;
@@ -242,11 +315,36 @@ export default function PropertyPage() {
       {/* Property header card */}
       <div className="mb-8 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
         {/* Banner */}
-        <div className={`relative flex h-28 items-center justify-center ${propColor}`}>
+        <div className={`group/banner relative flex h-28 items-center justify-center overflow-hidden ${propColor}`}>
           {property.logo ? (
             <img src={property.logo} alt={property.name} className="h-full w-full object-cover" />
           ) : (
             <span className="text-5xl font-bold text-white/70 select-none">{property.name[0]?.toUpperCase()}</span>
+          )}
+          {canEditProp && (
+            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 transition-colors group-hover/banner:bg-black/25">
+              <button
+                onClick={() => propImageInputRef.current?.click()}
+                disabled={uploadingProp}
+                className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-neutral-700 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover/banner:opacity-100 disabled:opacity-50"
+              >
+                <Camera className="size-3.5" />
+                {uploadingProp ? "Uploading…" : property.logo ? "Change Image" : "Add Image"}
+              </button>
+              {property.logo && (
+                <button
+                  onClick={async () => {
+                    const toastId = toast.loading("Removing image…");
+                    const res = await fetch(`/api/properties/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logo: null }) });
+                    if (res.ok) { setProperty((p) => p ? { ...p, logo: null } : p); toast.success("Image removed", { id: toastId }); }
+                    else toast.error("Failed to remove image", { id: toastId });
+                  }}
+                  className="rounded-lg bg-white/90 p-1.5 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover/banner:opacity-100"
+                >
+                  <Trash2 className="size-3.5 text-red-500" />
+                </button>
+              )}
+            </div>
           )}
           <div className="absolute bottom-3 left-4">
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${property.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
@@ -341,8 +439,35 @@ export default function PropertyPage() {
             return (
               <div key={v.id} className="group overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:border-neutral-400 hover:shadow-md">
                 {/* Venue banner */}
-                <div className={`relative flex h-24 items-center justify-center ${vColor}`}>
-                  <span className="text-3xl font-bold text-white/70 select-none">{v.name[0]?.toUpperCase()}</span>
+                <div className={`relative flex h-24 items-center justify-center overflow-hidden ${vColor}`}>
+                  {v.image ? (
+                    <img src={v.image} alt={v.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-3xl font-bold text-white/70 select-none">{v.name[0]?.toUpperCase()}</span>
+                  )}
+                  {canEdit && (
+                    <div
+                      className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 transition-colors group-hover:bg-black/25"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() => { pendingVenueUploadIdRef.current = v.id; venueImageInputRef.current?.click(); }}
+                        disabled={uploadingVenueId === v.id}
+                        className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-neutral-700 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100 disabled:opacity-50"
+                      >
+                        <Camera className="size-3.5" />
+                        {uploadingVenueId === v.id ? "Uploading…" : v.image ? "Change" : "Add Image"}
+                      </button>
+                      {v.image && (
+                        <button
+                          onClick={() => handleRemoveVenueImage(v.id)}
+                          className="rounded-lg bg-white/90 p-1.5 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100"
+                        >
+                          <Trash2 className="size-3.5 text-red-500" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <div
                     className="absolute right-2.5 top-2.5 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100"
                     onClick={(e) => e.stopPropagation()}
@@ -400,6 +525,9 @@ export default function PropertyPage() {
           })}
         </div>
       )}
+
+      <input ref={propImageInputRef} type="file" accept="image/*" className="sr-only" onChange={handlePropImageChange} />
+      <input ref={venueImageInputRef} type="file" accept="image/*" className="sr-only" onChange={handleVenueImageChange} />
 
       <VenueDialog
         open={venueDialogOpen}

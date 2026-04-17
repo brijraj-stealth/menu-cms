@@ -115,6 +115,7 @@ model Venue {
   name        String
   description String?
   address     String?
+  image       String?
   isActive    Boolean  @default(true)
   propertyId  String
   createdAt   DateTime @default(now())

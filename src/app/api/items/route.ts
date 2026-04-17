@@ -12,6 +12,7 @@ const createSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   basePrice: z.number().min(0),
+  image: z.string().url().nullable().optional(),
   subCategoryId: z.string().min(1, "Sub-category ID is required"),
   allergenIds: z.array(z.string()).optional().default([]),
   variants: z.array(variantSchema).optional().default([]),
