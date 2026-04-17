@@ -118,7 +118,29 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
 
+    const before = await prisma.menu.findUnique({ where: { id }, select: { name: true, description: true, isActive: true } });
+
     const menu = await prisma.menu.update({ where: { id }, data: parsed.data });
+
+    if (before) {
+      const tracked = ["name", "description", "isActive"] as const;
+      const changes = tracked
+        .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
+        .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));
+      const wasPublished = before.isActive === false && parsed.data.isActive === true;
+      const wasArchived = before.isActive === true && parsed.data.isActive === false;
+      const action = wasPublished ? "published" : wasArchived ? "archived" : "updated";
+      void prisma.activityLog.create({
+        data: {
+          userId: session.user.id as string,
+          action,
+          entityType: "menu",
+          entityId: id,
+          metadata: { entityName: menu.name, changes },
+        },
+      });
+    }
+
     return Response.json({ data: menu });
   } catch (err: unknown) {
     if (err && typeof err === "object" && "code" in err && err.code === "P2002") {
@@ -141,7 +163,17 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    const menu = await prisma.menu.findUnique({ where: { id }, select: { name: true } });
     await prisma.menu.delete({ where: { id } });
+    void prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "deleted",
+        entityType: "menu",
+        entityId: id,
+        metadata: { entityName: menu?.name ?? id },
+      },
+    });
     return Response.json({ data: { success: true } });
   } catch {
     return Response.json({ error: "Failed to delete menu" }, { status: 500 });

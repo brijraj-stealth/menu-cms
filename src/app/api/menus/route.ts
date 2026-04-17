@@ -136,6 +136,16 @@ export async function POST(request: Request) {
       },
     });
 
+    void prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "created",
+        entityType: "menu",
+        entityId: menu.id,
+        metadata: { entityName: menu.name },
+      },
+    });
+
     return Response.json({ data: { ...menu, itemsCount: 0 } }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to create menu" }, { status: 500 });

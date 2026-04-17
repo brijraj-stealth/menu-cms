@@ -114,6 +114,16 @@ export async function POST(request: Request) {
       include: { _count: { select: { venues: true } } },
     });
 
+    void prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "created",
+        entityType: "property",
+        entityId: property.id,
+        metadata: { entityName: property.name },
+      },
+    });
+
     return Response.json({ data: { ...property, menusCount: 0, itemsCount: 0 } }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to create property" }, { status: 500 });

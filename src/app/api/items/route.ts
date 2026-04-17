@@ -75,6 +75,16 @@ export async function POST(request: Request) {
       return created;
     });
 
+    void prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "created",
+        entityType: "item",
+        entityId: item.id,
+        metadata: { entityName: item.name },
+      },
+    });
+
     return Response.json({ data: item }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to create item" }, { status: 500 });

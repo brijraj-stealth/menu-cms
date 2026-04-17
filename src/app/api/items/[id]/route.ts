@@ -77,6 +77,8 @@ export async function PUT(
 
     const { allergenIds, variants, ...itemData } = parsed.data;
 
+    const before = await prisma.item.findUnique({ where: { id }, select: { name: true, description: true, basePrice: true, isActive: true } });
+
     const item = await prisma.$transaction(async (tx) => {
       const updated = await tx.item.update({ where: { id }, data: itemData });
 
@@ -109,6 +111,23 @@ export async function PUT(
       return updated;
     });
 
+    if (before) {
+      const tracked = ["name", "description", "basePrice", "isActive"] as const;
+      const changes = tracked
+        .filter((f) => before[f] !== (itemData as Record<string, unknown>)[f] && (itemData as Record<string, unknown>)[f] !== undefined)
+        .map((f) => ({ field: f, old: before[f] ?? null, new: (itemData as Record<string, unknown>)[f] ?? null }));
+      const wasArchived = before.isActive === true && itemData.isActive === false;
+      void prisma.activityLog.create({
+        data: {
+          userId: session.user.id as string,
+          action: wasArchived ? "archived" : "updated",
+          entityType: "item",
+          entityId: id,
+          metadata: { entityName: item.name, changes },
+        },
+      });
+    }
+
     return Response.json({ data: item });
   } catch {
     return Response.json({ error: "Failed to update item" }, { status: 500 });
@@ -128,7 +147,17 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    const item = await prisma.item.findUnique({ where: { id }, select: { name: true } });
     await prisma.item.delete({ where: { id } });
+    void prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "deleted",
+        entityType: "item",
+        entityId: id,
+        metadata: { entityName: item?.name ?? id },
+      },
+    });
     return Response.json({ data: { success: true } });
   } catch {
     return Response.json({ error: "Failed to delete item" }, { status: 500 });

@@ -76,6 +76,16 @@ export async function POST(request: Request) {
       include: { _count: { select: { menus: true } } },
     });
 
+    void prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "created",
+        entityType: "venue",
+        entityId: venue.id,
+        metadata: { entityName: venue.name },
+      },
+    });
+
     return Response.json({ data: venue }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to create venue" }, { status: 500 });

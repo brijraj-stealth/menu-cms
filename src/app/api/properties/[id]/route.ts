@@ -88,11 +88,29 @@ export async function PUT(
       );
     }
 
+    const before = await prisma.property.findUnique({ where: { id }, select: { name: true, description: true, location: true, isActive: true } });
+
     const property = await prisma.property.update({
       where: { id },
       data: parsed.data,
       include: { _count: { select: { venues: true } } },
     });
+
+    if (before) {
+      const tracked = ["name", "description", "location", "isActive"] as const;
+      const changes = tracked
+        .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
+        .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));
+      void prisma.activityLog.create({
+        data: {
+          userId: session.user.id as string,
+          action: "updated",
+          entityType: "property",
+          entityId: id,
+          metadata: { entityName: property.name, changes },
+        },
+      });
+    }
 
     return Response.json({ data: property });
   } catch {
@@ -115,7 +133,17 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    const property = await prisma.property.findUnique({ where: { id }, select: { name: true } });
     await prisma.property.delete({ where: { id } });
+    void prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "deleted",
+        entityType: "property",
+        entityId: id,
+        metadata: { entityName: property?.name ?? id },
+      },
+    });
     return Response.json({ data: { success: true } });
   } catch {
     return Response.json({ error: "Failed to delete property" }, { status: 500 });

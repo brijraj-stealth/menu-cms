@@ -79,11 +79,30 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
 
+    const before = await prisma.venue.findUnique({ where: { id }, select: { name: true, description: true, address: true, isActive: true } });
+
     const venue = await prisma.venue.update({
       where: { id },
       data: parsed.data,
       include: { _count: { select: { menus: true } } },
     });
+
+    if (before) {
+      const tracked = ["name", "description", "address", "isActive"] as const;
+      const changes = tracked
+        .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
+        .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));
+      void prisma.activityLog.create({
+        data: {
+          userId: session.user.id as string,
+          action: "updated",
+          entityType: "venue",
+          entityId: id,
+          metadata: { entityName: venue.name, changes },
+        },
+      });
+    }
+
     return Response.json({ data: venue });
   } catch {
     return Response.json({ error: "Failed to update venue" }, { status: 500 });
@@ -103,7 +122,17 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    const venue = await prisma.venue.findUnique({ where: { id }, select: { name: true } });
     await prisma.venue.delete({ where: { id } });
+    void prisma.activityLog.create({
+      data: {
+        userId: session.user.id as string,
+        action: "deleted",
+        entityType: "venue",
+        entityId: id,
+        metadata: { entityName: venue?.name ?? id },
+      },
+    });
     return Response.json({ data: { success: true } });
   } catch {
     return Response.json({ error: "Failed to delete venue" }, { status: 500 });
