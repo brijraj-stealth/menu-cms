@@ -50,7 +50,6 @@ export async function GET(request: Request) {
         return Response.json({ data: menus }, { headers: { "Cache-Control": "no-store" } });
       }
 
-      // Staff: return only menus for venues/properties they have access to
       const [venueAccess, propAccess] = await Promise.all([
         prisma.userVenueAccess.findMany({ where: { userId: session.user.id }, select: { venueId: true } }),
         prisma.userPropertyAccess.findMany({
@@ -81,7 +80,26 @@ export async function GET(request: Request) {
       include: { _count: { select: { categories: true } } },
     });
 
-    return Response.json({ data: menus }, { headers: { "Cache-Control": "no-store" } });
+    if (menus.length === 0) return Response.json({ data: [] }, { headers: { "Cache-Control": "no-store" } });
+
+    const menuIds = menus.map((m) => m.id);
+
+    // Count items per menu through categories → subCategories → items
+    const itemCounts = await prisma.$queryRaw<Array<{ menuId: string; count: bigint }>>`
+      SELECT c."menuId", COUNT(i.id)::int as count
+      FROM "Category" c
+      LEFT JOIN "SubCategory" sc ON sc."categoryId" = c.id
+      LEFT JOIN "Item" i ON i."subCategoryId" = sc.id
+      WHERE c."menuId" = ANY(${menuIds})
+      GROUP BY c."menuId"
+    `;
+
+    const data = menus.map((m) => ({
+      ...m,
+      itemsCount: Number(itemCounts.find((c) => c.menuId === m.id)?.count ?? 0),
+    }));
+
+    return Response.json({ data }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json({ error: "Failed to fetch menus" }, { status: 500 });
   }
@@ -118,7 +136,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return Response.json({ data: menu }, { status: 201 });
+    return Response.json({ data: { ...menu, itemsCount: 0 } }, { status: 201 });
   } catch {
     return Response.json({ error: "Failed to create menu" }, { status: 500 });
   }

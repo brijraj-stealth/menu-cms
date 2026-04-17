@@ -5,12 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Plus, Pencil, Trash2, MapPin, BookOpen, Camera, Tag, X, Check,
+  Plus, Pencil, Trash2, Camera, Check, X, MoreHorizontal, Eye, History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { type MeData, isAdmin, canOnProperty } from "@/lib/permissions";
@@ -19,9 +22,11 @@ interface Property {
   id: string;
   name: string;
   description: string | null;
+  location: string | null;
   slug: string;
   logo: string | null;
   isActive: boolean;
+  sequenceNumber: number;
 }
 
 interface Venue {
@@ -38,48 +43,109 @@ interface Venue {
 interface Menu {
   id: string;
   name: string;
-  description: string | null;
   isActive: boolean;
   venueId: string;
   _count: { categories: number };
-}
-
-const CARD_COLORS = [
-  "bg-violet-500", "bg-blue-500", "bg-emerald-500",
-  "bg-orange-500", "bg-rose-500", "bg-indigo-500", "bg-amber-500", "bg-cyan-500",
-];
-function cardColor(name: string) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
-  return CARD_COLORS[Math.abs(h) % CARD_COLORS.length];
+  itemsCount: number;
 }
 
 function PageSkeleton() {
   return (
-    <div>
-      <div className="mb-5 h-7 w-24 animate-pulse rounded bg-neutral-100" />
-      <div className="mb-6 overflow-hidden rounded-xl border border-neutral-200">
-        <div className="h-32 animate-pulse bg-neutral-100" />
-        <div className="p-5">
-          <div className="h-5 w-48 animate-pulse rounded bg-neutral-100" />
-          <div className="mt-2 h-3.5 w-64 animate-pulse rounded bg-neutral-100" />
-        </div>
-      </div>
-      {[...Array(2)].map((_, i) => (
-        <div key={i} className="mb-4 overflow-hidden rounded-xl border border-neutral-200">
-          <div className="h-16 animate-pulse bg-neutral-100" />
-          <div className="p-4">
-            <div className="h-4 w-40 animate-pulse rounded bg-neutral-100" />
-            <div className="mt-3 h-8 w-full animate-pulse rounded bg-neutral-100" />
-            <div className="mt-2 h-8 w-full animate-pulse rounded bg-neutral-100" />
+    <div className="animate-pulse">
+      <div className="mb-1 h-3.5 w-24 rounded bg-neutral-100" />
+      <div className="mb-2 h-7 w-64 rounded bg-neutral-100" />
+      <div className="mb-6 h-4 w-32 rounded bg-neutral-100" />
+      <div className="grid grid-cols-2 gap-4">
+        {[...Array(2)].map((_, i) => (
+          <div key={i} className="overflow-hidden rounded-xl border border-neutral-200">
+            <div className="aspect-video bg-neutral-100" />
+            <div className="p-4">
+              <div className="h-4 w-32 rounded bg-neutral-100" />
+              <div className="mt-2 h-3 w-20 rounded bg-neutral-100" />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
-function VenueDialog({
+function EditPropertyDialog({
+  open, onOpenChange, property, onSave, onUploadImage, onRemoveImage, uploading,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  property: Property;
+  onSave: (data: { name: string; description: string; location: string }) => Promise<void>;
+  onUploadImage: () => void;
+  onRemoveImage: () => void;
+  uploading: boolean;
+}) {
+  const [form, setForm] = useState({ name: property.name, description: property.description ?? "", location: property.location ?? "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setForm({ name: property.name, description: property.description ?? "", location: property.location ?? "" });
+      setError(null);
+    }
+  }, [open, property]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(form);
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Edit Property</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onUploadImage} disabled={uploading} className="h-7 gap-1.5 px-2.5 text-xs">
+              <Camera className="size-3.5" />{uploading ? "Uploading…" : property.logo ? "Change Image" : "Upload Image"}
+            </Button>
+            {property.logo && (
+              <Button type="button" variant="outline" size="sm" onClick={onRemoveImage} className="h-7 gap-1.5 px-2.5 text-xs text-red-600 hover:border-red-200 hover:bg-red-50">
+                <Trash2 className="size-3.5" /> Remove Image
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-neutral-700">Name *</label>
+            <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required autoFocus />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-neutral-700">Location</label>
+            <Input placeholder="e.g. Monterey, CA" value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-neutral-700">Description</label>
+            <Input placeholder="Optional" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+          </div>
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={saving} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
+              <Check className="size-3.5" />{saving ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddVenueDialog({
   open, onOpenChange, onSave,
 }: {
   open: boolean;
@@ -111,9 +177,7 @@ function VenueDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add New Venue</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>Add New Venue</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-neutral-700">Venue name *</label>
@@ -125,68 +189,12 @@ function VenueDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-neutral-700">Description</label>
-            <Input placeholder="Optional description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+            <Input placeholder="e.g. Cocktail Bar, BBQ" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
           </div>
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={submitting} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
               {submitting ? "Creating…" : "Create Venue"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function MenuDialog({
-  open, onOpenChange, onSave,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onSave: (data: { name: string; description: string }) => Promise<void>;
-}) {
-  const [form, setForm] = useState({ name: "", description: "" });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) { setForm({ name: "", description: "" }); setError(null); }
-  }, [open]);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await onSave(form);
-      onOpenChange(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create New Menu</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-neutral-700">Menu name *</label>
-            <Input placeholder="e.g. Dinner Menu, Cocktail Menu" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required autoFocus />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-neutral-700">Description</label>
-            <Input placeholder="Optional description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-          </div>
-          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-          <DialogFooter>
-            <Button type="submit" disabled={submitting} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
-              {submitting ? "Creating…" : "Create Menu"}
             </Button>
           </DialogFooter>
         </form>
@@ -205,31 +213,15 @@ export default function PropertyPage() {
   const [menusMap, setMenusMap] = useState<Record<string, Menu[]>>({});
   const [loading, setLoading] = useState(true);
 
-  // Property edit
-  const [editingProperty, setEditingProperty] = useState(false);
-  const [propForm, setPropForm] = useState({ name: "", description: "" });
-  const [propSaving, setPropSaving] = useState(false);
-
-  // Property image
+  const [editPropertyOpen, setEditPropertyOpen] = useState(false);
   const [uploadingProp, setUploadingProp] = useState(false);
   const propImageInputRef = useRef<HTMLInputElement>(null);
 
-  // Delete targets
   const [deletePropertyOpen, setDeletePropertyOpen] = useState(false);
   const [deletingProperty, setDeletingProperty] = useState(false);
   const [deleteVenueTarget, setDeleteVenueTarget] = useState<Venue | null>(null);
   const [deletingVenue, setDeletingVenue] = useState(false);
-  const [deleteMenuTarget, setDeleteMenuTarget] = useState<Menu | null>(null);
-  const [deletingMenu, setDeletingMenu] = useState(false);
-
-  // Venue inline editing
-  const [editingVenueId, setEditingVenueId] = useState<string | null>(null);
-  const [venueFormMap, setVenueFormMap] = useState<Record<string, { name: string; description: string; address: string }>>({});
-  const [venueSavingId, setVenueSavingId] = useState<string | null>(null);
-
-  // Dialogs
   const [venueDialogOpen, setVenueDialogOpen] = useState(false);
-  const [menuDialogVenueId, setMenuDialogVenueId] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     const [meRes, propRes, venueRes] = await Promise.all([
@@ -240,20 +232,11 @@ export default function PropertyPage() {
     const [meJson, propJson, venueJson] = await Promise.all([meRes.json(), propRes.json(), venueRes.json()]);
 
     if (meJson.data) setMe(meJson.data);
-    if (propJson.data) {
-      setProperty(propJson.data);
-      setPropForm({ name: propJson.data.name, description: propJson.data.description ?? "" });
-    }
+    if (propJson.data) setProperty(propJson.data);
 
     if (venueJson.data) {
       const venueData: Venue[] = venueJson.data;
       setVenues(venueData);
-
-      const formMap: Record<string, { name: string; description: string; address: string }> = {};
-      venueData.forEach((v) => {
-        formMap[v.id] = { name: v.name, description: v.description ?? "", address: v.address ?? "" };
-      });
-      setVenueFormMap(formMap);
 
       if (venueData.length > 0) {
         const menuResponses = await Promise.all(
@@ -271,31 +254,15 @@ export default function PropertyPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // --- Property handlers ---
-  async function saveProperty(e: React.FormEvent) {
-    e.preventDefault();
-    setPropSaving(true);
+  async function saveProperty(data: { name: string; description: string; location: string }) {
     const res = await fetch(`/api/properties/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(propForm),
+      body: JSON.stringify(data),
     });
     const json = await res.json();
-    if (json.data) { setProperty(json.data); setEditingProperty(false); toast.success("Property updated"); }
-    else toast.error("Failed to update property");
-    setPropSaving(false);
-  }
-
-  async function handleDeleteProperty() {
-    setDeletingProperty(true);
-    try {
-      const res = await fetch(`/api/properties/${id}`, { method: "DELETE" });
-      if (res.ok) { toast.success(`"${property?.name}" deleted`); router.push("/dashboard/properties"); }
-      else toast.error("Failed to delete property");
-    } finally {
-      setDeletingProperty(false);
-      setDeletePropertyOpen(false);
-    }
+    if (json.data) { setProperty((prev) => prev ? { ...prev, ...json.data } : prev); toast.success("Property updated"); }
+    else throw new Error(json.error ?? "Failed to update");
   }
 
   async function handlePropImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -334,7 +301,18 @@ export default function PropertyPage() {
     else toast.error("Failed to remove image", { id: toastId });
   }
 
-  // --- Venue handlers ---
+  async function handleDeleteProperty() {
+    setDeletingProperty(true);
+    try {
+      const res = await fetch(`/api/properties/${id}`, { method: "DELETE" });
+      if (res.ok) { toast.success(`"${property?.name}" deleted`); router.push("/dashboard/properties"); }
+      else toast.error("Failed to delete property");
+    } finally {
+      setDeletingProperty(false);
+      setDeletePropertyOpen(false);
+    }
+  }
+
   async function createVenue(data: { name: string; description: string; address: string }) {
     const res = await fetch("/api/venues", {
       method: "POST",
@@ -343,31 +321,9 @@ export default function PropertyPage() {
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Failed to create venue");
-    const newVenue: Venue = json.data;
-    setVenues((prev) => [...prev, newVenue]);
-    setVenueFormMap((prev) => ({ ...prev, [newVenue.id]: { name: newVenue.name, description: newVenue.description ?? "", address: newVenue.address ?? "" } }));
-    setMenusMap((prev) => ({ ...prev, [newVenue.id]: [] }));
-    toast.success(`"${newVenue.name}" created`);
-  }
-
-  async function saveVenue(venueId: string) {
-    const form = venueFormMap[venueId];
-    if (!form) return;
-    setVenueSavingId(venueId);
-    const res = await fetch(`/api/venues/${venueId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const json = await res.json();
-    if (json.data) {
-      setVenues((prev) => prev.map((v) => v.id === venueId ? json.data : v));
-      setEditingVenueId(null);
-      toast.success("Venue updated");
-    } else {
-      toast.error("Failed to update venue");
-    }
-    setVenueSavingId(null);
+    setVenues((prev) => [...prev, json.data]);
+    setMenusMap((prev) => ({ ...prev, [json.data.id]: [] }));
+    toast.success(`"${json.data.name}" created`);
   }
 
   async function handleDeleteVenue() {
@@ -388,155 +344,91 @@ export default function PropertyPage() {
     }
   }
 
-  // --- Menu handlers ---
-  async function createMenu(venueId: string, data: { name: string; description: string }) {
-    const res = await fetch("/api/menus", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, venueId }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error ?? "Failed to create menu");
-    setMenusMap((prev) => ({ ...prev, [venueId]: [...(prev[venueId] ?? []), json.data] }));
-    toast.success(`"${json.data.name}" created`);
-  }
-
-  async function handleDeleteMenu() {
-    if (!deleteMenuTarget) return;
-    setDeletingMenu(true);
-    try {
-      const res = await fetch(`/api/menus/${deleteMenuTarget.id}`, { method: "DELETE" });
-      if (res.ok) {
-        const venueId = deleteMenuTarget.venueId;
-        setMenusMap((prev) => ({ ...prev, [venueId]: (prev[venueId] ?? []).filter((m) => m.id !== deleteMenuTarget.id) }));
-        toast.success(`"${deleteMenuTarget.name}" deleted`);
-      } else {
-        toast.error("Failed to delete menu");
-      }
-    } finally {
-      setDeletingMenu(false);
-      setDeleteMenuTarget(null);
-    }
-  }
-
   if (loading) return <PageSkeleton />;
 
   if (!property) {
     return (
       <div className="py-20 text-center">
         <p className="text-sm text-red-600">Property not found.</p>
-        <Button variant="ghost" size="sm" render={<Link href="/dashboard/properties" />} className="mt-4">
-          <ArrowLeft className="size-4" /> Back
-        </Button>
+        <Button variant="ghost" size="sm" render={<Link href="/dashboard/properties" />} className="mt-4">Back</Button>
       </div>
     );
   }
 
-  const canEditProp = me ? canOnProperty(me, "EDIT", id) : false;
+  const canEditProp = me ? (isAdmin(me.role) || canOnProperty(me, "EDIT", id)) : false;
   const canManageProp = me ? isAdmin(me.role) : false;
   const canAddVenue = me ? (isAdmin(me.role) || canOnProperty(me, "ADD", id)) : false;
-  const propColor = cardColor(property.name);
+  const isReadOnly = !canEditProp;
+  const roleLabel = me?.role === "SUPER_ADMIN" ? "Super Admin" : me?.role === "ADMIN" ? "Admin" : "Staff";
 
   return (
     <div>
-      {/* Back */}
-      <Button variant="ghost" size="sm" render={<Link href="/dashboard/properties" />} className="-ml-2 mb-5 text-neutral-500 hover:text-neutral-900">
-        <ArrowLeft className="size-4" /> All Properties
-      </Button>
-
-      {/* Property header card */}
-      <div className="mb-6 overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
-        <div className={`relative flex h-32 items-center justify-center overflow-hidden ${propColor}`}>
-          {property.logo ? (
-            <img src={property.logo} alt={property.name} className="h-full w-full object-cover" />
-          ) : (
-            <span className="select-none text-6xl font-bold text-white/60">{property.name[0]?.toUpperCase()}</span>
+      {/* Header */}
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <p className="text-[12px] text-neutral-400">
+            Property · p{property.sequenceNumber}
+          </p>
+          <h1 className="mt-0.5 text-2xl font-semibold text-neutral-900">{property.name}</h1>
+          {property.location && (
+            <p className="mt-1 text-sm text-neutral-500">{property.location}</p>
           )}
-          <div className="absolute bottom-3 left-4">
-            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${property.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
-              {property.isActive ? "Active" : "Inactive"}
-            </span>
-          </div>
         </div>
-
-        <div className="p-5">
-          {editingProperty ? (
-            <form onSubmit={saveProperty} className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 pb-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => propImageInputRef.current?.click()}
-                  disabled={uploadingProp}
-                  className="h-7 gap-1.5 px-2.5 text-xs"
-                >
-                  <Camera className="size-3.5" />
-                  {uploadingProp ? "Uploading…" : property.logo ? "Change Image" : "Upload Image"}
-                </Button>
-                {property.logo && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemovePropLogo}
-                    className="h-7 gap-1.5 px-2.5 text-xs text-red-600 hover:border-red-200 hover:bg-red-50"
-                  >
-                    <Trash2 className="size-3.5" /> Remove Image
-                  </Button>
-                )}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-neutral-700">Name</label>
-                <Input value={propForm.name} onChange={(e) => setPropForm((f) => ({ ...f, name: e.target.value }))} required autoFocus />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-neutral-700">Description</label>
-                <Input value={propForm.description} onChange={(e) => setPropForm((f) => ({ ...f, description: e.target.value }))} placeholder="Optional" />
-              </div>
-              <div className="flex gap-2 pt-1">
-                <Button type="submit" disabled={propSaving} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
-                  <Check className="size-3.5" /> {propSaving ? "Saving…" : "Save Changes"}
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingProperty(false); setPropForm({ name: property.name, description: property.description ?? "" }); }}>
-                  <X className="size-3.5" /> Cancel
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h1 className="text-lg font-semibold text-neutral-900">{property.name}</h1>
-                {property.description && <p className="mt-0.5 text-sm text-neutral-500">{property.description}</p>}
-                <p className="mt-1 font-mono text-[11px] text-neutral-400">{property.slug}</p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                {canEditProp && (
-                  <Button variant="outline" size="sm" onClick={() => setEditingProperty(true)} className="h-8 gap-1.5 px-3 text-[13px]">
-                    <Pencil className="size-3.5" /> Edit Property
-                  </Button>
-                )}
-                {canManageProp && (
-                  <Button variant="outline" size="sm" onClick={() => setDeletePropertyOpen(true)} className="h-8 gap-1.5 px-3 text-[13px] text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
-                    <Trash2 className="size-3.5" /> Delete Property
-                  </Button>
-                )}
-              </div>
-            </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            render={<Link href="/dashboard/audit-log" />}
+            className="h-8 gap-1.5 px-3 text-[13px]"
+          >
+            <History className="size-3.5" /> History
+          </Button>
+          {canEditProp && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditPropertyOpen(true)}
+              className="h-8 gap-1.5 px-3 text-[13px]"
+            >
+              <Pencil className="size-3.5" /> Edit
+            </Button>
+          )}
+          {canManageProp && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeletePropertyOpen(true)}
+              className="h-8 gap-1.5 px-3 text-[13px] text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 className="size-3.5" /> Delete
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Venues & Menus */}
+      {/* Read-only banner */}
+      {isReadOnly && (
+        <div className="mb-6 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <Eye className="size-4 shrink-0 text-amber-600" />
+          <p className="text-[13px] text-amber-700">
+            You&apos;re signed in as <strong>{roleLabel}</strong> — read-only access.
+          </p>
+        </div>
+      )}
+
+      {/* Venues section */}
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-neutral-900">Venues &amp; Menus</h2>
-          <p className="text-sm text-neutral-500">
+          <h2 className="text-base font-semibold text-neutral-900">Venues</h2>
+          <p className="text-[13px] text-neutral-500">
             {venues.length === 0 ? "No venues yet" : `${venues.length} venue${venues.length !== 1 ? "s" : ""}`}
           </p>
         </div>
         {canAddVenue && (
-          <Button onClick={() => setVenueDialogOpen(true)} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
+          <Button
+            onClick={() => setVenueDialogOpen(true)}
+            className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800"
+          >
             <Plus className="size-3.5" /> Add Venue
           </Button>
         )}
@@ -544,10 +436,7 @@ export default function PropertyPage() {
 
       {venues.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50/50 py-16">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-neutral-100">
-            <MapPin className="size-6 text-neutral-400" />
-          </div>
-          <h3 className="mt-4 text-sm font-semibold text-neutral-900">No venues yet</h3>
+          <h3 className="text-sm font-semibold text-neutral-900">No venues yet</h3>
           <p className="mt-1 max-w-xs text-center text-sm text-neutral-400">
             Venues are physical locations within this property.
           </p>
@@ -558,164 +447,66 @@ export default function PropertyPage() {
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {venues.map((v) => {
-            const vColor = cardColor(v.name);
-            const canEditV = me ? (isAdmin(me.role) || canOnProperty(me, "EDIT", id)) : false;
-            const canManageV = me ? isAdmin(me.role) : false;
-            const canAddMenu = me ? (isAdmin(me.role) || canOnProperty(me, "ADD", id)) : false;
             const vMenus = menusMap[v.id] ?? [];
-            const isEditingV = editingVenueId === v.id;
-
+            const itemCount = vMenus.reduce((a, m) => a + (m.itemsCount ?? 0), 0);
             return (
               <div key={v.id} className="overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
-                {/* Venue color strip */}
-                <div className={`flex h-14 items-center gap-3 px-5 ${vColor}`}>
-                  <span className="select-none text-2xl font-bold text-white/80">{v.name[0]?.toUpperCase()}</span>
-                  <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${v.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
-                    {v.isActive ? "Active" : "Inactive"}
-                  </span>
-                </div>
-
-                <div className="p-4">
-                  {/* Venue info / edit form */}
-                  {isEditingV ? (
-                    <form
-                      onSubmit={async (e) => { e.preventDefault(); await saveVenue(v.id); }}
-                      className="flex flex-col gap-3 border-b border-neutral-100 pb-4 mb-4"
-                    >
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-sm font-medium text-neutral-700">Venue name</label>
-                        <Input
-                          value={venueFormMap[v.id]?.name ?? ""}
-                          onChange={(e) => setVenueFormMap((prev) => ({ ...prev, [v.id]: { ...prev[v.id], name: e.target.value } }))}
-                          required
-                          autoFocus
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-sm font-medium text-neutral-700">Address</label>
-                        <Input
-                          value={venueFormMap[v.id]?.address ?? ""}
-                          onChange={(e) => setVenueFormMap((prev) => ({ ...prev, [v.id]: { ...prev[v.id], address: e.target.value } }))}
-                          placeholder="Optional"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-sm font-medium text-neutral-700">Description</label>
-                        <Input
-                          value={venueFormMap[v.id]?.description ?? ""}
-                          onChange={(e) => setVenueFormMap((prev) => ({ ...prev, [v.id]: { ...prev[v.id], description: e.target.value } }))}
-                          placeholder="Optional"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button type="submit" disabled={venueSavingId === v.id} className="h-7 gap-1.5 bg-neutral-900 px-3 text-xs text-white hover:bg-neutral-800">
-                          <Check className="size-3" /> {venueSavingId === v.id ? "Saving…" : "Save Venue"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingVenueId(null);
-                            setVenueFormMap((prev) => ({ ...prev, [v.id]: { name: v.name, description: v.description ?? "", address: v.address ?? "" } }));
-                          }}
-                          className="h-7 gap-1 text-xs"
-                        >
-                          <X className="size-3" /> Cancel
-                        </Button>
-                      </div>
-                    </form>
-                  ) : (
-                    <div className="flex items-start justify-between gap-4 border-b border-neutral-100 pb-4 mb-4">
-                      <div>
-                        <h3 className="text-sm font-semibold text-neutral-900">{v.name}</h3>
-                        {v.address && (
-                          <p className="mt-0.5 flex items-center gap-1 text-xs text-neutral-400">
-                            <MapPin className="size-3 shrink-0" /> {v.address}
-                          </p>
-                        )}
-                        {v.description && <p className="mt-0.5 text-xs text-neutral-400">{v.description}</p>}
-                      </div>
-                      <div className="flex shrink-0 gap-1.5">
-                        {canEditV && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingVenueId(v.id)}
-                            className="h-7 gap-1 px-2 text-xs text-neutral-600 hover:text-neutral-900"
-                          >
-                            <Pencil className="size-3" /> Edit Venue
-                          </Button>
-                        )}
-                        {canManageV && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteVenueTarget(v)}
-                            className="h-7 gap-1 px-2 text-xs text-red-500 hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 className="size-3" /> Delete Venue
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Menus list */}
-                  <div>
-                    {vMenus.length === 0 ? (
-                      <p className="mb-3 text-xs text-neutral-400">No menus in this venue yet.</p>
+                {/* Photo area */}
+                <Link href={`/dashboard/properties/${id}/venues/${v.id}`}>
+                  <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-neutral-100">
+                    {v.image ? (
+                      <img src={v.image} alt={v.name} className="h-full w-full object-cover" />
                     ) : (
-                      <div className="mb-2 flex flex-col divide-y divide-neutral-100">
-                        {vMenus.map((m) => (
-                          <div key={m.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                            <div className="flex min-w-0 items-center gap-2.5">
-                              <BookOpen className="size-3.5 shrink-0 text-neutral-400" />
-                              <span className="truncate text-sm font-medium text-neutral-800">{m.name}</span>
-                              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${m.isActive ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-neutral-500"}`}>
-                                {m.isActive ? "Active" : "Inactive"}
-                              </span>
-                              <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-neutral-400">
-                                <Tag className="size-3" /> {m._count.categories}
-                              </span>
-                            </div>
-                            <div className="ml-3 flex shrink-0 items-center gap-1.5">
-                              <Button
-                                size="sm"
-                                render={<Link href={`/dashboard/properties/${id}/venues/${v.id}/menus/${m.id}`} />}
-                                className="h-7 gap-1.5 bg-neutral-900 px-2.5 text-xs text-white hover:bg-neutral-800"
-                              >
-                                <Pencil className="size-3" /> Edit Menu
-                              </Button>
-                              {canManageV && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setDeleteMenuTarget(m)}
-                                  className="h-7 w-7 p-0 text-neutral-400 hover:bg-red-50 hover:text-red-600"
-                                  title="Delete this menu permanently"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                      <div className="flex flex-col items-center gap-1.5">
+                        <Camera className="size-5 text-neutral-300" />
+                        <p className="text-[10px] font-medium uppercase tracking-widest text-neutral-300">
+                          Venue Photo · {v.name.toUpperCase()}
+                        </p>
                       </div>
-                    )}
-                    {canAddMenu && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setMenuDialogVenueId(v.id)}
-                        className="h-7 gap-1.5 px-2 text-xs text-neutral-500 hover:text-neutral-900"
-                      >
-                        <Plus className="size-3" /> Create Menu
-                      </Button>
                     )}
                   </div>
+                </Link>
+
+                {/* Card body */}
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <Link href={`/dashboard/properties/${id}/venues/${v.id}`} className="min-w-0">
+                      <h3 className="truncate text-[13px] font-semibold text-neutral-900 hover:underline">
+                        {v.name}
+                      </h3>
+                      {v.description && (
+                        <p className="mt-0.5 truncate text-[12px] text-neutral-400">{v.description}</p>
+                      )}
+                    </Link>
+                    {canManageProp && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button variant="ghost" size="sm" className="size-7 shrink-0 p-0 text-neutral-400 hover:text-neutral-700">
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          }
+                        />
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem render={<Link href={`/dashboard/properties/${id}/venues/${v.id}`} />}>
+                            Open Venue
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600 focus:bg-red-50 focus:text-red-700"
+                            onClick={() => setDeleteVenueTarget(v)}
+                          >
+                            <Trash2 className="size-3.5" /> Delete Venue
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                  <p className="mt-3 text-[12px] text-neutral-400">
+                    {vMenus.length} menu{vMenus.length !== 1 ? "s" : ""} &nbsp;·&nbsp; {itemCount} item{itemCount !== 1 ? "s" : ""}
+                  </p>
                 </div>
               </div>
             );
@@ -725,21 +516,23 @@ export default function PropertyPage() {
 
       <input ref={propImageInputRef} type="file" accept="image/*" className="sr-only" onChange={handlePropImageChange} />
 
-      <VenueDialog open={venueDialogOpen} onOpenChange={setVenueDialogOpen} onSave={createVenue} />
+      <EditPropertyDialog
+        open={editPropertyOpen}
+        onOpenChange={setEditPropertyOpen}
+        property={property}
+        onSave={saveProperty}
+        onUploadImage={() => propImageInputRef.current?.click()}
+        onRemoveImage={handleRemovePropLogo}
+        uploading={uploadingProp}
+      />
 
-      {menuDialogVenueId && (
-        <MenuDialog
-          open={!!menuDialogVenueId}
-          onOpenChange={(v) => { if (!v) setMenuDialogVenueId(null); }}
-          onSave={(data) => createMenu(menuDialogVenueId, data)}
-        />
-      )}
+      <AddVenueDialog open={venueDialogOpen} onOpenChange={setVenueDialogOpen} onSave={createVenue} />
 
       <ConfirmDialog
         open={deletePropertyOpen}
         onOpenChange={(v) => { if (!v) setDeletePropertyOpen(false); }}
         title="Delete property?"
-        description={`"${property.name}" and all its venues, menus, and items will be permanently deleted. This cannot be undone.`}
+        description={`"${property.name}" and all its venues, menus, and items will be permanently deleted.`}
         onConfirm={handleDeleteProperty}
         loading={deletingProperty}
       />
@@ -747,17 +540,9 @@ export default function PropertyPage() {
         open={!!deleteVenueTarget}
         onOpenChange={(v) => { if (!v) setDeleteVenueTarget(null); }}
         title="Delete venue?"
-        description={`"${deleteVenueTarget?.name}" and all its menus and items will be permanently deleted. This cannot be undone.`}
+        description={`"${deleteVenueTarget?.name}" and all its menus and items will be permanently deleted.`}
         onConfirm={handleDeleteVenue}
         loading={deletingVenue}
-      />
-      <ConfirmDialog
-        open={!!deleteMenuTarget}
-        onOpenChange={(v) => { if (!v) setDeleteMenuTarget(null); }}
-        title="Delete menu?"
-        description={`"${deleteMenuTarget?.name}" and all its categories and items will be permanently deleted. This cannot be undone.`}
-        onConfirm={handleDeleteMenu}
-        loading={deletingMenu}
       />
     </div>
   );

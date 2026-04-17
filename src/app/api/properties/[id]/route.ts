@@ -5,6 +5,7 @@ import { z } from "zod";
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  location: z.string().optional(),
   logo: z.string().url().nullable().optional(),
   isActive: z.boolean().optional(),
 });
@@ -44,13 +45,18 @@ export async function GET(
     const property = await prisma.property.findUnique({
       where: { id },
       include: {
-        venues: { orderBy: { createdAt: "desc" } },
+        venues: { orderBy: { createdAt: "asc" } },
         _count: { select: { venues: true } },
       },
     });
 
     if (!property) return Response.json({ error: "Property not found" }, { status: 404 });
-    return Response.json({ data: property });
+
+    const seqNum = await prisma.property.count({
+      where: { createdAt: { lte: property.createdAt } },
+    });
+
+    return Response.json({ data: { ...property, sequenceNumber: seqNum } });
   } catch {
     return Response.json({ error: "Failed to fetch property" }, { status: 500 });
   }

@@ -4,11 +4,16 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Pencil, Trash2, BookOpen, MapPin, Tag, Camera, Check, X } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Camera, Check, X, MoreHorizontal, Eye, Settings,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { type MeData, isAdmin, canOnVenue, canOnProperty } from "@/lib/permissions";
@@ -21,6 +26,7 @@ interface VenueInfo {
   image: string | null;
   isActive: boolean;
   propertyId: string;
+  sequenceNumber: number;
   property: { id: string; name: string; slug: string };
 }
 
@@ -28,48 +34,100 @@ interface Menu {
   id: string;
   name: string;
   description: string | null;
+  scheduleText: string | null;
   isActive: boolean;
   venueId: string;
   _count: { categories: number };
-}
-
-const CARD_COLORS = [
-  "bg-violet-500", "bg-blue-500", "bg-emerald-500",
-  "bg-orange-500", "bg-rose-500", "bg-indigo-500", "bg-amber-500", "bg-cyan-500",
-];
-function cardColor(name: string) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
-  return CARD_COLORS[Math.abs(h) % CARD_COLORS.length];
+  itemsCount: number;
 }
 
 function PageSkeleton() {
   return (
-    <div>
-      <div className="mb-6 h-8 w-24 animate-pulse rounded-lg bg-neutral-100" />
-      <div className="mb-8 overflow-hidden rounded-xl border border-neutral-200">
-        <div className="h-32 animate-pulse bg-neutral-100" />
-        <div className="p-5">
-          <div className="h-5 w-48 animate-pulse rounded bg-neutral-100" />
-          <div className="mt-2 h-3.5 w-64 animate-pulse rounded bg-neutral-100" />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {[...Array(2)].map((_, i) => (
-          <div key={i} className="overflow-hidden rounded-xl border border-neutral-200">
-            <div className="aspect-square animate-pulse bg-neutral-100" />
-            <div className="p-4">
-              <div className="h-4 w-32 animate-pulse rounded bg-neutral-100" />
-              <div className="mt-2 h-3 w-48 animate-pulse rounded bg-neutral-100" />
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="animate-pulse">
+      <div className="mb-1 h-3.5 w-24 rounded bg-neutral-100" />
+      <div className="mb-2 h-7 w-48 rounded bg-neutral-100" />
+      <div className="mb-6 h-4 w-32 rounded bg-neutral-100" />
+      <div className="h-48 rounded-xl bg-neutral-100" />
     </div>
   );
 }
 
-function MenuDialog({
+function EditVenueDialog({
+  open, onOpenChange, venue, onSave, onUploadImage, onRemoveImage, uploading,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  venue: VenueInfo;
+  onSave: (data: { name: string; description: string; address: string }) => Promise<void>;
+  onUploadImage: () => void;
+  onRemoveImage: () => void;
+  uploading: boolean;
+}) {
+  const [form, setForm] = useState({ name: venue.name, description: venue.description ?? "", address: venue.address ?? "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setForm({ name: venue.name, description: venue.description ?? "", address: venue.address ?? "" });
+      setError(null);
+    }
+  }, [open, venue]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(form);
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Venue Settings</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onUploadImage} disabled={uploading} className="h-7 gap-1.5 px-2.5 text-xs">
+              <Camera className="size-3.5" />{uploading ? "Uploading…" : venue.image ? "Change Photo" : "Upload Photo"}
+            </Button>
+            {venue.image && (
+              <Button type="button" variant="outline" size="sm" onClick={onRemoveImage} className="h-7 gap-1.5 px-2.5 text-xs text-red-600 hover:border-red-200 hover:bg-red-50">
+                <Trash2 className="size-3.5" /> Remove
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-neutral-700">Name *</label>
+            <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required autoFocus />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-neutral-700">Type / Description</label>
+            <Input placeholder="e.g. Cocktail Bar, BBQ" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-neutral-700">Address</label>
+            <Input placeholder="Optional" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+          </div>
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={saving} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
+              <Check className="size-3.5" />{saving ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateMenuDialog({
   open, onOpenChange, onSave,
 }: {
   open: boolean;
@@ -101,9 +159,7 @@ function MenuDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create New Menu</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>Create New Menu</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-neutral-700">Menu name *</label>
@@ -133,11 +189,11 @@ export default function VenuePage() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuDialogOpen, setMenuDialogOpen] = useState(false);
-  const [editingVenue, setEditingVenue] = useState(false);
-  const [venueForm, setVenueForm] = useState({ name: "", description: "", address: "" });
-  const [venueSaving, setVenueSaving] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleteVenueOpen, setDeleteVenueOpen] = useState(false);
   const [deletingVenue, setDeletingVenue] = useState(false);
+  const [deleteMenuTarget, setDeleteMenuTarget] = useState<Menu | null>(null);
+  const [deletingMenu, setDeletingMenu] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -149,40 +205,30 @@ export default function VenuePage() {
     ]);
     const [meJson, venueJson, menuJson] = await Promise.all([meRes.json(), venueRes.json(), menuRes.json()]);
     if (meJson.data) setMe(meJson.data);
-    if (venueJson.data) {
-      setVenue(venueJson.data);
-      setVenueForm({ name: venueJson.data.name, description: venueJson.data.description ?? "", address: venueJson.data.address ?? "" });
-    }
+    if (venueJson.data) setVenue(venueJson.data);
     if (menuJson.data) setMenus(menuJson.data);
     setLoading(false);
   }, [venueId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  async function saveVenue(e: React.FormEvent) {
-    e.preventDefault();
-    setVenueSaving(true);
+  async function saveVenue(data: { name: string; description: string; address: string }) {
     const res = await fetch(`/api/venues/${venueId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(venueForm),
+      body: JSON.stringify(data),
     });
     const json = await res.json();
-    if (json.data) { setVenue(json.data); setEditingVenue(false); toast.success("Venue updated"); }
-    else toast.error("Failed to update venue");
-    setVenueSaving(false);
+    if (json.data) { setVenue((prev) => prev ? { ...prev, ...json.data } : prev); toast.success("Venue updated"); }
+    else throw new Error(json.error ?? "Failed to update");
   }
 
   async function handleDeleteVenue() {
     setDeletingVenue(true);
     try {
       const res = await fetch(`/api/venues/${venueId}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success(`"${venue?.name}" deleted`);
-        router.push(`/dashboard/properties/${id}`);
-      } else {
-        toast.error("Failed to delete venue");
-      }
+      if (res.ok) { toast.success(`"${venue?.name}" deleted`); router.push(`/dashboard/properties/${id}`); }
+      else toast.error("Failed to delete venue");
     } finally {
       setDeletingVenue(false);
       setDeleteVenueOpen(false);
@@ -237,15 +283,30 @@ export default function VenuePage() {
     toast.success(`"${json.data.name}" created`);
   }
 
+  async function handleDeleteMenu() {
+    if (!deleteMenuTarget) return;
+    setDeletingMenu(true);
+    try {
+      const res = await fetch(`/api/menus/${deleteMenuTarget.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setMenus((prev) => prev.filter((m) => m.id !== deleteMenuTarget.id));
+        toast.success(`"${deleteMenuTarget.name}" deleted`);
+      } else {
+        toast.error("Failed to delete menu");
+      }
+    } finally {
+      setDeletingMenu(false);
+      setDeleteMenuTarget(null);
+    }
+  }
+
   if (loading) return <PageSkeleton />;
 
   if (!venue) {
     return (
       <div className="py-20 text-center">
         <p className="text-sm text-red-600">Venue not found.</p>
-        <Button variant="ghost" size="sm" render={<Link href={`/dashboard/properties/${id}`} />} className="mt-4">
-          <ArrowLeft className="size-4" /> Back
-        </Button>
+        <Button variant="ghost" size="sm" render={<Link href={`/dashboard/properties/${id}`} />} className="mt-4">Back</Button>
       </div>
     );
   }
@@ -253,114 +314,60 @@ export default function VenuePage() {
   const canEditVenue = me ? (isAdmin(me.role) || canOnProperty(me, "EDIT", id)) : false;
   const canManageVenue = me ? isAdmin(me.role) : false;
   const canAddMenu = me ? (isAdmin(me.role) || canOnVenue(me, "ADD", venueId) || canOnProperty(me, "ADD", id)) : false;
-  const vColor = cardColor(venue.name);
+  const isReadOnly = !canEditVenue;
+  const roleLabel = me?.role === "SUPER_ADMIN" ? "Super Admin" : me?.role === "ADMIN" ? "Admin" : "Staff";
 
   return (
     <div>
-      {/* Back */}
-      <Button variant="ghost" size="sm" render={<Link href={`/dashboard/properties/${id}`} />} className="-ml-2 mb-5 text-neutral-500 hover:text-neutral-900">
-        <ArrowLeft className="size-4" /> {venue.property.name}
-      </Button>
-
-      {/* Venue header card */}
-      <div className="mb-6 overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
-        <div className={`relative flex h-32 items-center justify-center overflow-hidden ${vColor}`}>
-          {venue.image ? (
-            <img src={venue.image} alt={venue.name} className="h-full w-full object-cover" />
-          ) : (
-            <span className="select-none text-6xl font-bold text-white/60">{venue.name[0]?.toUpperCase()}</span>
-          )}
-          <div className="absolute bottom-3 left-4">
-            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${venue.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
-              {venue.isActive ? "Active" : "Inactive"}
-            </span>
-          </div>
+      {/* Header */}
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <p className="text-[12px] text-neutral-400">
+            <Link href="/dashboard/properties" className="hover:text-neutral-600">All properties</Link>
+            {" · "}
+            <Link href={`/dashboard/properties/${id}`} className="hover:text-neutral-600">{venue.property.name}</Link>
+          </p>
+          <p className="mt-0.5 text-[11px] text-neutral-400">Venue · v{venue.sequenceNumber}</p>
+          <h1 className="mt-0.5 text-2xl font-semibold text-neutral-900">{venue.name}</h1>
+          {venue.description && <p className="mt-1 text-sm text-neutral-500">{venue.description}</p>}
         </div>
-
-        <div className="p-5">
-          {editingVenue ? (
-            <form onSubmit={saveVenue} className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 pb-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => imageInputRef.current?.click()}
-                  disabled={uploadingImage}
-                  className="h-7 gap-1.5 px-2.5 text-xs"
-                >
-                  <Camera className="size-3.5" />
-                  {uploadingImage ? "Uploading…" : venue.image ? "Change Image" : "Upload Image"}
-                </Button>
-                {venue.image && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemoveImage}
-                    className="h-7 gap-1.5 px-2.5 text-xs text-red-600 hover:border-red-200 hover:bg-red-50"
-                  >
-                    <Trash2 className="size-3.5" /> Remove Image
-                  </Button>
-                )}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-neutral-700">Name</label>
-                <Input value={venueForm.name} onChange={(e) => setVenueForm((f) => ({ ...f, name: e.target.value }))} required autoFocus />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-neutral-700">Address</label>
-                <Input value={venueForm.address} onChange={(e) => setVenueForm((f) => ({ ...f, address: e.target.value }))} placeholder="Optional" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-neutral-700">Description</label>
-                <Input value={venueForm.description} onChange={(e) => setVenueForm((f) => ({ ...f, description: e.target.value }))} placeholder="Optional" />
-              </div>
-              <div className="flex gap-2 pt-1">
-                <Button type="submit" disabled={venueSaving} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
-                  <Check className="size-3.5" /> {venueSaving ? "Saving…" : "Save Changes"}
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingVenue(false); setVenueForm({ name: venue.name, description: venue.description ?? "", address: venue.address ?? "" }); }}>
-                  <X className="size-3.5" /> Cancel
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h1 className="text-lg font-semibold text-neutral-900">{venue.name}</h1>
-                {venue.address && (
-                  <p className="mt-0.5 flex items-center gap-1.5 text-sm text-neutral-500">
-                    <MapPin className="size-3.5 shrink-0" /> {venue.address}
-                  </p>
-                )}
-                {venue.description && <p className="mt-0.5 text-sm text-neutral-500">{venue.description}</p>}
-              </div>
-              <div className="flex shrink-0 gap-2">
-                {canEditVenue && (
-                  <Button variant="outline" size="sm" onClick={() => setEditingVenue(true)} className="h-8 gap-1.5 px-3 text-[13px]">
-                    <Pencil className="size-3.5" /> Edit Venue
-                  </Button>
-                )}
-                {canManageVenue && (
-                  <Button variant="outline" size="sm" onClick={() => setDeleteVenueOpen(true)} className="h-8 gap-1.5 px-3 text-[13px] text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
-                    <Trash2 className="size-3.5" /> Delete Venue
-                  </Button>
-                )}
-              </div>
-            </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {canEditVenue && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSettingsOpen(true)}
+              className="h-8 gap-1.5 px-3 text-[13px]"
+            >
+              <Settings className="size-3.5" /> Settings
+            </Button>
+          )}
+          {canManageVenue && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteVenueOpen(true)}
+              className="h-8 gap-1.5 px-3 text-[13px] text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 className="size-3.5" /> Delete
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Menus section */}
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-neutral-900">Menus</h2>
-          <p className="text-sm text-neutral-500">
-            {menus.length === 0 ? "No menus yet" : `${menus.length} menu${menus.length !== 1 ? "s" : ""}`}
+      {/* Read-only banner */}
+      {isReadOnly && (
+        <div className="mb-6 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <Eye className="size-4 shrink-0 text-amber-600" />
+          <p className="text-[13px] text-amber-700">
+            You&apos;re signed in as <strong>{roleLabel}</strong> — read-only access.
           </p>
         </div>
+      )}
+
+      {/* Menus table */}
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-neutral-900">Menus</h2>
         {canAddMenu && (
           <Button onClick={() => setMenuDialogOpen(true)} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">
             <Plus className="size-3.5" /> Create Menu
@@ -370,10 +377,7 @@ export default function VenuePage() {
 
       {menus.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50/50 py-16">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-neutral-100">
-            <BookOpen className="size-6 text-neutral-400" />
-          </div>
-          <h3 className="mt-4 text-sm font-semibold text-neutral-900">No menus yet</h3>
+          <h3 className="text-sm font-semibold text-neutral-900">No menus yet</h3>
           <p className="mt-1 max-w-xs text-center text-sm text-neutral-400">
             Create a menu to start building categories and items.
           </p>
@@ -384,55 +388,103 @@ export default function VenuePage() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {menus.map((m) => {
-            const mColor = cardColor(m.name);
-            return (
-              <div key={m.id} className="overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
-                {/* Square menu image */}
-                <div className={`relative aspect-square flex items-center justify-center ${mColor}`}>
-                  <BookOpen className="size-14 text-white/50" />
-                  <div className="absolute bottom-3 left-3">
-                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${m.isActive ? "bg-white/90 text-emerald-700" : "bg-white/70 text-neutral-500"}`}>
-                      {m.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-                </div>
+        <div className="overflow-hidden rounded-xl border border-neutral-200/80 bg-white">
+          {/* Column headers */}
+          <div className="grid grid-cols-[1fr_160px_120px_80px_80px_40px] items-center border-b border-neutral-100 px-4 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">Menu</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">Schedule</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">Status</p>
+            <p className="text-right text-[11px] font-semibold uppercase tracking-wider text-neutral-400">Categories</p>
+            <p className="text-right text-[11px] font-semibold uppercase tracking-wider text-neutral-400">Items</p>
+            <div />
+          </div>
 
-                {/* Menu body */}
-                <div className="p-4">
-                  <h3 className="text-sm font-semibold text-neutral-900">{m.name}</h3>
-                  {m.description && <p className="mt-0.5 line-clamp-2 text-xs text-neutral-400">{m.description}</p>}
-                  <div className="mt-2 flex items-center gap-1 text-xs text-neutral-400">
-                    <Tag className="size-3" />
-                    {m._count.categories} categor{m._count.categories !== 1 ? "ies" : "y"}
-                  </div>
-                  <div className="mt-3">
-                    <Button
-                      render={<Link href={`/dashboard/properties/${id}/venues/${venueId}/menus/${m.id}`} />}
-                      className="h-8 w-full gap-1.5 bg-neutral-900 text-[13px] text-white hover:bg-neutral-800"
-                    >
-                      <Pencil className="size-3.5" /> Edit Menu
-                    </Button>
-                  </div>
-                </div>
+          {menus.map((m) => (
+            <div
+              key={m.id}
+              className="grid grid-cols-[1fr_160px_120px_80px_80px_40px] items-center border-b border-neutral-100 px-4 py-3 last:border-0 hover:bg-neutral-50/50 transition-colors"
+            >
+              <Link href={`/dashboard/properties/${id}/venues/${venueId}/menus/${m.id}`} className="flex items-center gap-2.5 min-w-0">
+                <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="truncate text-[13px] font-medium text-neutral-800 hover:underline">{m.name}</span>
+              </Link>
+              <p className="text-[13px] text-neutral-500">{m.scheduleText ?? "—"}</p>
+              <div>
+                {m.isActive ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                    Published
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500">
+                    <span className="size-1.5 rounded-full bg-neutral-400" />
+                    Draft
+                  </span>
+                )}
               </div>
-            );
-          })}
+              <p className="text-right text-[13px] text-neutral-700">{m._count.categories}</p>
+              <p className="text-right text-[13px] text-neutral-700">{m.itemsCount}</p>
+              <div className="flex justify-end">
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button variant="ghost" size="sm" className="size-7 p-0 text-neutral-400 hover:text-neutral-700">
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    }
+                  />
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem render={<Link href={`/dashboard/properties/${id}/venues/${venueId}/menus/${m.id}`} />}>
+                      <Pencil className="size-3.5" /> Edit Menu
+                    </DropdownMenuItem>
+                    {canManageVenue && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-600 focus:bg-red-50 focus:text-red-700"
+                          onClick={() => setDeleteMenuTarget(m)}
+                        >
+                          <Trash2 className="size-3.5" /> Delete Menu
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       <input ref={imageInputRef} type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
 
-      <MenuDialog open={menuDialogOpen} onOpenChange={setMenuDialogOpen} onSave={createMenu} />
+      <EditVenueDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        venue={venue}
+        onSave={saveVenue}
+        onUploadImage={() => imageInputRef.current?.click()}
+        onRemoveImage={handleRemoveImage}
+        uploading={uploadingImage}
+      />
+
+      <CreateMenuDialog open={menuDialogOpen} onOpenChange={setMenuDialogOpen} onSave={createMenu} />
 
       <ConfirmDialog
         open={deleteVenueOpen}
         onOpenChange={(v) => { if (!v) setDeleteVenueOpen(false); }}
         title="Delete venue?"
-        description={`"${venue.name}" and all its menus and items will be permanently deleted. This cannot be undone.`}
+        description={`"${venue.name}" and all its menus and items will be permanently deleted.`}
         onConfirm={handleDeleteVenue}
         loading={deletingVenue}
+      />
+      <ConfirmDialog
+        open={!!deleteMenuTarget}
+        onOpenChange={(v) => { if (!v) setDeleteMenuTarget(null); }}
+        title="Delete menu?"
+        description={`"${deleteMenuTarget?.name}" and all its categories and items will be permanently deleted.`}
+        onConfirm={handleDeleteMenu}
+        loading={deletingMenu}
       />
     </div>
   );

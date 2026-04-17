@@ -43,7 +43,11 @@ export async function GET(
       if (!access && !propAccess) return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    return Response.json({ data: venue }, { headers: { "Cache-Control": "no-store" } });
+    const seqNum = await prisma.venue.count({
+      where: { propertyId: venue.propertyId, createdAt: { lte: venue.createdAt } },
+    });
+
+    return Response.json({ data: { ...venue, sequenceNumber: seqNum } }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json({ error: "Failed to fetch venue" }, { status: 500 });
   }
