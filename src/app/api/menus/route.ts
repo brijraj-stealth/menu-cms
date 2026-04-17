@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
+import { Permission } from "@prisma/client";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -142,7 +143,7 @@ export async function POST(request: Request) {
       prisma.userVenueAccess.findMany({ where: { venueId }, select: { userId: true, permissions: true } }),
       prisma.userPropertyAccess.findMany({ where: { propertyId }, select: { userId: true, permissions: true } }),
     ]);
-    const accessMap = new Map<string, string[]>();
+    const accessMap = new Map<string, Permission[]>();
     for (const a of pAccessList) accessMap.set(a.userId, a.permissions);
     for (const a of vAccessList) accessMap.set(a.userId, a.permissions); // venue overrides property
     if (accessMap.size > 0) {
