@@ -16,20 +16,37 @@ function slugify(str: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function isAdmin(role: string) {
+  return role === "SUPER_ADMIN" || role === "ADMIN";
+}
+
 export async function GET() {
   const session = await auth();
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const properties = await prisma.property.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        _count: { select: { venues: true } },
-      },
-    });
+    const role = session.user.role as string;
 
+    if (isAdmin(role)) {
+      const properties = await prisma.property.findMany({
+        orderBy: { createdAt: "desc" },
+        include: { _count: { select: { venues: true } } },
+      });
+      return Response.json({ data: properties });
+    }
+
+    // STAFF: only properties they have explicit access to
+    const access = await prisma.userPropertyAccess.findMany({
+      where: { userId: session.user.id },
+      select: { propertyId: true },
+    });
+    const propertyIds = access.map((a) => a.propertyId);
+
+    const properties = await prisma.property.findMany({
+      where: { id: { in: propertyIds } },
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { venues: true } } },
+    });
     return Response.json({ data: properties });
   } catch {
     return Response.json({ error: "Failed to fetch properties" }, { status: 500 });
@@ -38,8 +55,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {
@@ -56,11 +75,8 @@ export async function POST(request: Request) {
     const { name, description } = parsed.data;
     let slug = slugify(name);
 
-    // Ensure slug uniqueness
     const existing = await prisma.property.findUnique({ where: { slug } });
-    if (existing) {
-      slug = `${slug}-${Date.now()}`;
-    }
+    if (existing) slug = `${slug}-${Date.now()}`;
 
     const property = await prisma.property.create({
       data: { name, description, slug },

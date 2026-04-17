@@ -23,14 +23,20 @@ interface SidebarProps {
     name?: string | null;
     email?: string | null;
     image?: string | null;
+    role?: string | null;
   };
 }
 
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+  const isStaff = user.role === "STAFF";
+
+  const visibleItems = isStaff
+    ? navItems.filter((item) => item.href !== "/dashboard/users")
+    : navItems;
 
   return (
-    <aside className="flex w-[260px] shrink-0 flex-col bg-slate-900 text-white">
+    <aside className="flex w-65 shrink-0 flex-col bg-slate-900 text-white">
       {/* Brand */}
       <div className="flex items-center gap-2.5 border-b border-white/10 px-5 py-4">
         <div className="flex size-8 items-center justify-center rounded-lg bg-white/10">
@@ -41,7 +47,7 @@ export function Sidebar({ user }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex flex-col gap-0.5 p-3">
-        {navItems.map(({ label, href, icon: Icon }) => {
+        {visibleItems.map(({ label, href, icon: Icon }) => {
           const isActive =
             href === "/dashboard"
               ? pathname === "/dashboard"

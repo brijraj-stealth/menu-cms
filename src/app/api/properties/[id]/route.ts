@@ -8,16 +8,36 @@ const updateSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+function isAdmin(role: string) {
+  return role === "SUPER_ADMIN" || role === "ADMIN";
+}
+
+async function hasPropertyPermission(
+  userId: string,
+  propertyId: string,
+  action: "VIEW" | "EDIT" | "DELETE"
+) {
+  const access = await prisma.userPropertyAccess.findUnique({
+    where: { userId_propertyId: { userId, propertyId } },
+    select: { permissions: true },
+  });
+  return access?.permissions.includes(action) ?? false;
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const role = session.user.role as string;
+
+  if (!isAdmin(role)) {
+    const allowed = await hasPropertyPermission(session.user.id, id, "VIEW");
+    if (!allowed) return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const property = await prisma.property.findUnique({
@@ -28,10 +48,7 @@ export async function GET(
       },
     });
 
-    if (!property) {
-      return Response.json({ error: "Property not found" }, { status: 404 });
-    }
-
+    if (!property) return Response.json({ error: "Property not found" }, { status: 404 });
     return Response.json({ data: property });
   } catch {
     return Response.json({ error: "Failed to fetch property" }, { status: 500 });
@@ -43,11 +60,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const role = session.user.role as string;
+
+  if (!isAdmin(role)) {
+    const allowed = await hasPropertyPermission(session.user.id, id, "EDIT");
+    if (!allowed) return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const body = await request.json();
@@ -77,8 +98,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Only admins can delete properties
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
