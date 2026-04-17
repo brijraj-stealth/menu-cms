@@ -13,12 +13,21 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get("type"); // all | items | menus | venues | properties
+  const type = searchParams.get("type");
+
+  const TYPE_MAP: Record<string, string> = {
+    items: "item",
+    menus: "menu",
+    categories: "category",
+    subcategories: "subcategory",
+    venues: "venue",
+    properties: "property",
+    users: "user",
+  };
 
   try {
-    const where = type && type !== "all"
-      ? { entityType: type.slice(0, -1) } // "items" -> "item", "menus" -> "menu"
-      : undefined;
+    const entityType = type && type !== "all" ? TYPE_MAP[type] : undefined;
+    const where = entityType ? { entityType } : undefined;
 
     const logs = await prisma.activityLog.findMany({
       where,

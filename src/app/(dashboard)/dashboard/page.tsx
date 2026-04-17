@@ -169,18 +169,25 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
 
-  async function fetchAll() {
-    const [meRes, menuRes] = await Promise.all([
-      fetch("/api/me"),
-      fetch("/api/menus"),
-    ]);
-    const [meJson, menuJson] = await Promise.all([meRes.json(), menuRes.json()]);
-    if (meJson.data) setMe(meJson.data);
-    if (menuJson.data) setMenus(menuJson.data);
-    setLoading(false);
-  }
+  useEffect(() => {
+    let cancelled = false;
 
-  useEffect(() => { fetchAll(); }, []);
+    function load(initial: boolean) {
+      if (initial) setLoading(true);
+      Promise.all([fetch("/api/me"), fetch("/api/menus")])
+        .then(([meRes, menuRes]) => Promise.all([meRes.json(), menuRes.json()]))
+        .then(([meJson, menuJson]) => {
+          if (cancelled) return;
+          if (meJson.data) setMe(meJson.data);
+          if (menuJson.data) setMenus(menuJson.data);
+        })
+        .finally(() => { if (initial && !cancelled) setLoading(false); });
+    }
+
+    load(true);
+    const interval = setInterval(() => load(false), 10000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   const canCreate = me ? isAdmin(me.role) : false;
 

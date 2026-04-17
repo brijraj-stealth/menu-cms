@@ -30,13 +30,16 @@ interface ActivityLog {
   user: LogUser;
 }
 
-type TabType = "all" | "items" | "menus" | "venues" | "users";
+type TabType = "all" | "items" | "menus" | "categories" | "subcategories" | "venues" | "properties" | "users";
 
 const TABS: { key: TabType; label: string }[] = [
   { key: "all", label: "All" },
   { key: "items", label: "Items" },
   { key: "menus", label: "Menus" },
+  { key: "categories", label: "Categories" },
+  { key: "subcategories", label: "Subcategories" },
   { key: "venues", label: "Venues" },
+  { key: "properties", label: "Properties" },
   { key: "users", label: "Users" },
 ];
 
@@ -153,7 +156,7 @@ export default function AuditLogPage() {
     }
 
     load(true);
-    const interval = setInterval(() => load(false), 15000);
+    const interval = setInterval(() => load(false), 5000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [tab]);
 
