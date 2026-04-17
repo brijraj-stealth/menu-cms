@@ -127,17 +127,50 @@ model Venue {
 }
 
 model Menu {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  isActive    Boolean  @default(true)
-  venueId     String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  name                     String
+  description              String?
+  slug                     String?  @unique
+  phoneNumber              String?
+  phoneButtonText          String?
+  videoSectionHeader       String?
+  videoSectionSubheader    String?
+  featuredSectionHeader    String?
+  featuredSectionSubheader String?
+  isActive                 Boolean  @default(true)
+  venueId                  String
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  venue      Venue      @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  categories Category[]
-  userAccess UserMenuAccess[]
+  venue          Venue               @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  categories     Category[]
+  userAccess     UserMenuAccess[]
+  videos         MenuVideo[]
+  featuredImages MenuFeaturedImage[]
+}
+
+model MenuVideo {
+  id        String   @id @default(cuid())
+  menuId    String
+  url       String
+  title     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+model MenuFeaturedImage {
+  id        String   @id @default(cuid())
+  menuId    String
+  url       String
+  title     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
 }
 
 model Category {
@@ -159,6 +192,7 @@ model SubCategory {
   name        String
   description String?
   sortOrder   Int      @default(0)
+  displayMode String   @default("LIST")
   isActive    Boolean  @default(true)
   categoryId  String
   createdAt   DateTime @default(now())
@@ -174,6 +208,7 @@ model Item {
   description   String?
   basePrice     Decimal  @db.Decimal(10, 2)
   image         String?
+  sortOrder     Int      @default(0)
   isActive      Boolean  @default(true)
   subCategoryId String
   createdAt     DateTime @default(now())

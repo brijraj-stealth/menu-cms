@@ -6,6 +6,7 @@ const updateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   sortOrder: z.number().int().optional(),
+  displayMode: z.enum(["LIST", "GRID"]).optional(),
   isActive: z.boolean().optional(),
 });
 

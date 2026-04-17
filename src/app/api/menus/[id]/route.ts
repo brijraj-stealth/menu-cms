@@ -6,6 +6,13 @@ const updateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   isActive: z.boolean().optional(),
+  slug: z.string().min(1).regex(/^[a-z0-9-]+$/, "Slug may only contain lowercase letters, numbers, and hyphens").optional().nullable(),
+  phoneNumber: z.string().optional().nullable(),
+  phoneButtonText: z.string().optional().nullable(),
+  videoSectionHeader: z.string().optional().nullable(),
+  videoSectionSubheader: z.string().optional().nullable(),
+  featuredSectionHeader: z.string().optional().nullable(),
+  featuredSectionSubheader: z.string().optional().nullable(),
 });
 
 function isAdmin(role: string) {
@@ -50,6 +57,8 @@ export async function GET(
             property: { select: { id: true, name: true, slug: true } },
           },
         },
+        videos: { orderBy: { sortOrder: "asc" } },
+        featuredImages: { orderBy: { sortOrder: "asc" } },
         categories: {
           orderBy: { sortOrder: "asc" },
           include: {
@@ -57,7 +66,7 @@ export async function GET(
               orderBy: { sortOrder: "asc" },
               include: {
                 items: {
-                  orderBy: { createdAt: "asc" },
+                  orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
                   include: {
                     variants: { orderBy: { createdAt: "asc" } },
                     itemAllergens: { include: { allergen: true } },
@@ -111,7 +120,10 @@ export async function PUT(
 
     const menu = await prisma.menu.update({ where: { id }, data: parsed.data });
     return Response.json({ data: menu });
-  } catch {
+  } catch (err: unknown) {
+    if (err && typeof err === "object" && "code" in err && err.code === "P2002") {
+      return Response.json({ error: "This slug is already in use" }, { status: 409 });
+    }
     return Response.json({ error: "Failed to update menu" }, { status: 500 });
   }
 }

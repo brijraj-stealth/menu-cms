@@ -13,8 +13,9 @@ const updateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   basePrice: z.number().min(0).optional(),
-  image: z.string().optional(),
+  image: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
   allergenIds: z.array(z.string()).optional(),
   variants: z.array(variantSchema).optional(),
 });
