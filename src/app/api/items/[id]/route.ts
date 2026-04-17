@@ -77,7 +77,13 @@ export async function PUT(
 
     const { allergenIds, variants, ...itemData } = parsed.data;
 
-    const before = await prisma.item.findUnique({ where: { id }, select: { name: true, description: true, basePrice: true, image: true, isActive: true, sortOrder: true } });
+    const before = await prisma.item.findUnique({
+      where: { id },
+      select: {
+        name: true, description: true, basePrice: true, image: true, isActive: true, sortOrder: true,
+        allergens: { select: { allergen: { select: { id: true, name: true } } } },
+      },
+    });
 
     const item = await prisma.$transaction(async (tx) => {
       const updated = await tx.item.update({ where: { id }, data: itemData });
@@ -113,9 +119,32 @@ export async function PUT(
 
     if (before) {
       const tracked = ["name", "description", "basePrice", "image", "isActive", "sortOrder"] as const;
-      const changes = tracked
-        .filter((f) => before[f] !== (itemData as Record<string, unknown>)[f] && (itemData as Record<string, unknown>)[f] !== undefined)
-        .map((f) => ({ field: f, old: before[f] ?? null, new: (itemData as Record<string, unknown>)[f] ?? null }));
+      // Normalize Prisma Decimal to number so the comparison works correctly
+      const beforeNorm: Record<string, unknown> = {
+        ...before,
+        basePrice: before.basePrice !== null ? Number(before.basePrice) : null,
+      };
+      const changes: { field: string; old: unknown; new: unknown }[] = tracked
+        .filter((f) => {
+          const after = (itemData as Record<string, unknown>)[f];
+          return after !== undefined && beforeNorm[f] !== after;
+        })
+        .map((f) => ({ field: f, old: beforeNorm[f] ?? null, new: (itemData as Record<string, unknown>)[f] ?? null }));
+
+      // Track allergen changes
+      if (allergenIds !== undefined) {
+        const oldIds = before.allergens.map((a) => a.allergen.id).sort().join(",");
+        const newIds = [...allergenIds].sort().join(",");
+        if (oldIds !== newIds) {
+          const newAllergens = allergenIds.length > 0
+            ? await prisma.allergen.findMany({ where: { id: { in: allergenIds } }, select: { name: true } })
+            : [];
+          const oldNames = before.allergens.map((a) => a.allergen.name).sort().join(", ") || "none";
+          const newNames = newAllergens.map((a) => a.name).sort().join(", ") || "none";
+          changes.push({ field: "allergens", old: oldNames, new: newNames });
+        }
+      }
+
       const wasArchived = before.isActive === true && itemData.isActive === false;
       await prisma.activityLog.create({
         data: {
