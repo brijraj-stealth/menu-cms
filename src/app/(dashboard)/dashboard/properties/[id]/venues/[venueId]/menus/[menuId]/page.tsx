@@ -515,9 +515,11 @@ export default function MenuBuilderPage() {
                                           <span className="font-semibold text-neutral-600">${parseFloat(item.basePrice).toFixed(2)}</span>
                                           {item.variants.length > 0 && <span>{item.variants.length} variant{item.variants.length !== 1 ? "s" : ""}</span>}
                                           {item.itemAllergens.length > 0 && (
-                                            <span className="flex gap-0.5">
+                                            <span className="flex flex-wrap gap-1">
                                               {item.itemAllergens.map((ia) => (
-                                                <span key={ia.allergen.id} title={ia.allergen.name}>{ia.allergen.icon ?? ia.allergen.name[0]}</span>
+                                                <span key={ia.allergen.id} className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                                  {ia.allergen.icon ? `${ia.allergen.icon} ` : ""}{ia.allergen.name}
+                                                </span>
                                               ))}
                                             </span>
                                           )}
