@@ -64,6 +64,7 @@ export async function POST(
           videoSectionSubheader: source.videoSectionSubheader,
           featuredSectionHeader: source.featuredSectionHeader,
           featuredSectionSubheader: source.featuredSectionSubheader,
+          scheduleText: source.scheduleText,
         },
       });
 

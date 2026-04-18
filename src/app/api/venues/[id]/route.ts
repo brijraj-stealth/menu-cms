@@ -64,11 +64,13 @@ export async function PUT(
 
   try {
     if (!isAdmin(session.user.role as string)) {
-      const access = await prisma.userVenueAccess.findUnique({
-        where: { userId_venueId: { userId: session.user.id, venueId: id } },
-        select: { permissions: true },
-      });
-      if (!access?.permissions.includes("EDIT")) {
+      const venue = await prisma.venue.findUnique({ where: { id }, select: { propertyId: true } });
+      const [va, pa] = await Promise.all([
+        prisma.userVenueAccess.findUnique({ where: { userId_venueId: { userId: session.user.id, venueId: id } }, select: { permissions: true } }),
+        venue ? prisma.userPropertyAccess.findUnique({ where: { userId_propertyId: { userId: session.user.id, propertyId: venue.propertyId } }, select: { permissions: true } }) : null,
+      ]);
+      const canEdit = va?.permissions.includes("EDIT") || pa?.permissions.includes("EDIT");
+      if (!canEdit) {
         return Response.json({ error: "Forbidden" }, { status: 403 });
       }
     }

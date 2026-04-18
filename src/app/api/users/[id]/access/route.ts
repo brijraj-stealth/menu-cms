@@ -14,6 +14,10 @@ const removeSchema = z.object({
   targetId: z.string().min(1),
 });
 
+function isAdmin(role: string) {
+  return role === "SUPER_ADMIN" || role === "ADMIN";
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -22,6 +26,10 @@ export async function GET(
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+
+  if (!isAdmin(session.user.role as string) && session.user.id !== id) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const [user, properties, propertyAccess, venueAccess, menuAccess] =
     await Promise.all([
@@ -74,6 +82,9 @@ export async function POST(
 ) {
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { id: userId } = await params;
   const body = await req.json();
@@ -157,6 +168,9 @@ export async function DELETE(
 ) {
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { id: userId } = await params;
   const body = await req.json();

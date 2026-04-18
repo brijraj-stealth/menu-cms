@@ -27,6 +27,10 @@ export async function GET(
 
   const { id } = await params;
 
+  if (!isAdmin(session.user.role as string) && session.user.id !== id) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { id },
@@ -88,6 +92,9 @@ export async function PUT(
   const session = await auth();
   if (!session) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isAdmin(session.user.role as string)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
