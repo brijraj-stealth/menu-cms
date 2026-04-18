@@ -114,7 +114,7 @@ export async function POST(
       }
 
       return menu;
-    });
+    }, { timeout: 30000 });
 
     await prisma.activityLog.create({
       data: {
