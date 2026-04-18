@@ -6,8 +6,9 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   ArrowLeft, Camera, ChevronDown, ChevronRight, ChevronUp, Copy, ImageIcon, LayoutGrid,
-  LayoutList, Pencil, Phone, Plus, Trash2, Video, X,
+  LayoutList, Layers, Pencil, Phone, Plus, ShoppingCart, Text, Trash2, Video, X,
 } from "lucide-react";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -20,18 +21,23 @@ interface Allergen { id: string; name: string; icon: string | null }
 interface ItemVariant { id: string; name: string; price: string; isActive: boolean }
 interface Item {
   id: string; name: string; description: string | null; basePrice: string;
-  image: string | null; isActive: boolean; subCategoryId: string; sortOrder: number;
+  image: string | null; isActive: boolean; showAddToCart: boolean; subCategoryId: string; sortOrder: number;
   variants: ItemVariant[];
   itemAllergens: { allergen: Allergen }[];
 }
 interface SubCategory {
   id: string; name: string; description: string | null; sortOrder: number;
-  displayMode: string; isActive: boolean; categoryId: string; items: Item[];
+  displayMode: string; isActive: boolean; showAddToCart: boolean; categoryId: string; items: Item[];
 }
 interface Category {
   id: string; name: string; description: string | null; sortOrder: number;
-  isActive: boolean; menuId: string; subCategories: SubCategory[];
+  isActive: boolean; showAddToCart: boolean; showAllergenInfo: boolean; showTaxInfo: boolean;
+  menuId: string; superCategoryId: string | null;
+  superCategory: { id: string; name: string } | null;
+  subCategories: SubCategory[];
 }
+interface SuperCategory { id: string; name: string; description: string | null; sortOrder: number; isActive: boolean; menuId: string }
+interface TextBlock { id: string; content: string; sortOrder: number; menuId: string }
 interface MenuVideo { id: string; url: string; title: string | null; sortOrder: number }
 interface MenuFeaturedImage { id: string; url: string; title: string | null; sortOrder: number }
 interface MenuData {
@@ -39,9 +45,12 @@ interface MenuData {
   slug: string | null; phoneNumber: string | null; phoneButtonText: string | null;
   videoSectionHeader: string | null; videoSectionSubheader: string | null;
   featuredSectionHeader: string | null; featuredSectionSubheader: string | null;
+  currency: string; allergenDescription: string | null; taxDescription: string | null;
   isActive: boolean; venueId: string;
   venue: { id: string; name: string; propertyId: string; property: { id: string; name: string; slug: string } };
   categories: Category[];
+  superCategories: SuperCategory[];
+  textBlocks: TextBlock[];
   videos: MenuVideo[];
   featuredImages: MenuFeaturedImage[];
 }
@@ -260,7 +269,7 @@ function ItemDialog({ open, onOpenChange, title, initial, allergens, onSave }: {
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-neutral-700">Description</label>
-              <Input placeholder="Optional — shown to guests" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+              <RichTextEditor value={form.description} onChange={(html) => setForm((f) => ({ ...f, description: html }))} placeholder="Optional — shown to guests" />
             </div>
           </div>
 
@@ -560,6 +569,49 @@ function CopyItemsDialog({ open, onOpenChange, currentMenu, onCopied }: {
   );
 }
 
+// ─── TextBlockDialog ──────────────────────────────────────────────────────────
+
+function TextBlockDialog({ open, onOpenChange, initial, onSave }: {
+  open: boolean; onOpenChange: (v: boolean) => void;
+  initial: TextBlock | null;
+  onSave: (content: string) => Promise<void>;
+}) {
+  const [content, setContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { if (open) { setContent(initial?.content ?? ""); setError(null); } }, [open, initial]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!content.trim()) { setError("Content is required"); return; }
+    setSubmitting(true); setError(null);
+    try { await onSave(content); }
+    catch (err) { setError(err instanceof Error ? err.message : "Failed to save"); }
+    finally { setSubmitting(false); }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>{initial ? "Edit Text Block" : "Add Text Block"}</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-neutral-700">Content</label>
+            <RichTextEditor value={content} onChange={setContent} placeholder="Enter text to display between sections…" />
+          </div>
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={submitting} className="bg-neutral-900 text-white hover:bg-neutral-700">
+              {submitting ? "Saving…" : initial ? "Save Changes" : "Add Text Block"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MenuBuilderPage() {
@@ -583,8 +635,16 @@ export default function MenuBuilderPage() {
   const [copyItemsOpen, setCopyItemsOpen] = useState(false);
 
   const [editingMenuInfo, setEditingMenuInfo] = useState(false);
-  const [menuForm, setMenuForm] = useState({ name: "", description: "", slug: "", phoneNumber: "", phoneButtonText: "" });
+  const [menuForm, setMenuForm] = useState({ name: "", description: "", slug: "", phoneNumber: "", phoneButtonText: "", currency: "AED" });
   const [menuSaving, setMenuSaving] = useState(false);
+
+  const [editingAllergenDesc, setEditingAllergenDesc] = useState(false);
+  const [allergenDescForm, setAllergenDescForm] = useState("");
+  const [editingTaxDesc, setEditingTaxDesc] = useState(false);
+  const [taxDescForm, setTaxDescForm] = useState("");
+
+  const [superCategoryDialog, setSuperCategoryDialog] = useState<{ open: boolean; editing: SuperCategory | null }>({ open: false, editing: null });
+  const [textBlockDialog, setTextBlockDialog] = useState<{ open: boolean; editing: TextBlock | null }>({ open: false, editing: null });
 
   const [editingVideoSection, setEditingVideoSection] = useState(false);
   const [videoSectionForm, setVideoSectionForm] = useState({ header: "", subheader: "" });
@@ -616,7 +676,9 @@ export default function MenuBuilderPage() {
     if (menuJson.data) {
       const d = menuJson.data;
       setMenuData(d);
-      setMenuForm({ name: d.name, description: d.description ?? "", slug: d.slug ?? "", phoneNumber: d.phoneNumber ?? "", phoneButtonText: d.phoneButtonText ?? "" });
+      setMenuForm({ name: d.name, description: d.description ?? "", slug: d.slug ?? "", phoneNumber: d.phoneNumber ?? "", phoneButtonText: d.phoneButtonText ?? "", currency: d.currency ?? "AED" });
+      setAllergenDescForm(d.allergenDescription ?? "");
+      setTaxDescForm(d.taxDescription ?? "");
       setVideoSectionForm({ header: d.videoSectionHeader ?? "", subheader: d.videoSectionSubheader ?? "" });
       setFeaturedSectionForm({ header: d.featuredSectionHeader ?? "", subheader: d.featuredSectionSubheader ?? "" });
       setExpandedCategories((prev) => { const next = new Set(prev); d.categories.forEach((c: Category) => next.add(c.id)); return next; });
@@ -634,7 +696,7 @@ export default function MenuBuilderPage() {
     setMenuSaving(true);
     const res = await fetch(`/api/menus/${menuId}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: menuForm.name, description: menuForm.description || null, slug: menuForm.slug || null, phoneNumber: menuForm.phoneNumber || null, phoneButtonText: menuForm.phoneButtonText || null }),
+      body: JSON.stringify({ name: menuForm.name, description: menuForm.description || null, slug: menuForm.slug || null, phoneNumber: menuForm.phoneNumber || null, phoneButtonText: menuForm.phoneButtonText || null, currency: menuForm.currency }),
     });
     const json = await res.json();
     if (json.data) { setMenuData((p) => p ? { ...p, ...json.data } : p); setEditingMenuInfo(false); toast.success("Menu updated"); }
@@ -897,6 +959,105 @@ export default function MenuBuilderPage() {
     else toast.error("Failed to save title");
   }
 
+  // ─── Allergen / Tax descriptions ──────────────────────────────────────────
+
+  async function saveAllergenDesc() {
+    const res = await fetch(`/api/menus/${menuId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ allergenDescription: allergenDescForm || null }) });
+    const json = await res.json();
+    if (json.data) { setMenuData((p) => p ? { ...p, allergenDescription: json.data.allergenDescription } : p); setEditingAllergenDesc(false); toast.success("Saved"); }
+    else toast.error("Failed to save");
+  }
+
+  async function saveTaxDesc() {
+    const res = await fetch(`/api/menus/${menuId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taxDescription: taxDescForm || null }) });
+    const json = await res.json();
+    if (json.data) { setMenuData((p) => p ? { ...p, taxDescription: json.data.taxDescription } : p); setEditingTaxDesc(false); toast.success("Saved"); }
+    else toast.error("Failed to save");
+  }
+
+  // ─── Super-category CRUD ───────────────────────────────────────────────────
+
+  async function createSuperCategory(data: { name: string; description: string }) {
+    const res = await fetch("/api/super-categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, menuId }) });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error ?? "Failed to create super category");
+    await fetchData(); toast.success(`"${json.data.name}" created`);
+  }
+
+  async function updateSuperCategory(data: { name: string; description: string }) {
+    if (!superCategoryDialog.editing) return;
+    const res = await fetch(`/api/super-categories/${superCategoryDialog.editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error ?? "Failed to update super category");
+    await fetchData(); toast.success(`"${json.data.name}" updated`);
+  }
+
+  async function deleteSuperCategory(scId: string, name: string) {
+    const res = await fetch(`/api/super-categories/${scId}`, { method: "DELETE" });
+    if (res.ok) { await fetchData(); toast.success(`"${name}" deleted`); }
+    else toast.error("Failed to delete super category");
+  }
+
+  async function assignCategoryToSuperCategory(catId: string, superCategoryId: string | null) {
+    const res = await fetch(`/api/categories/${catId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ superCategoryId }) });
+    if (res.ok) { await fetchData(); }
+    else toast.error("Failed to assign category");
+  }
+
+  // ─── Text block CRUD ───────────────────────────────────────────────────────
+
+  async function createTextBlock(content: string) {
+    const maxOrder = menuData ? Math.max(0, ...menuData.textBlocks.map((t) => t.sortOrder)) : 0;
+    const res = await fetch("/api/text-blocks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content, menuId, sortOrder: maxOrder + 1 }) });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error ?? "Failed to create text block");
+    await fetchData(); toast.success("Text block added");
+  }
+
+  async function updateTextBlock(id: string, content: string) {
+    const res = await fetch(`/api/text-blocks/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) });
+    if (res.ok) { await fetchData(); toast.success("Text block updated"); }
+    else toast.error("Failed to update text block");
+  }
+
+  async function deleteTextBlock(id: string) {
+    const res = await fetch(`/api/text-blocks/${id}`, { method: "DELETE" });
+    if (res.ok) { setMenuData((p) => p ? { ...p, textBlocks: p.textBlocks.filter((t) => t.id !== id) } : p); toast.success("Text block deleted"); }
+    else toast.error("Failed to delete text block");
+  }
+
+  // ─── Cart + allergen toggles ───────────────────────────────────────────────
+
+  async function toggleCategoryCart(catId: string, current: boolean) {
+    setMenuData((p) => p ? { ...p, categories: p.categories.map((c) => c.id === catId ? { ...c, showAddToCart: !current } : c) } : p);
+    fetch(`/api/categories/${catId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ showAddToCart: !current }) })
+      .catch(() => { toast.error("Failed to update"); fetchData(); });
+  }
+
+  async function toggleCategoryAllergenInfo(catId: string, current: boolean) {
+    setMenuData((p) => p ? { ...p, categories: p.categories.map((c) => c.id === catId ? { ...c, showAllergenInfo: !current } : c) } : p);
+    fetch(`/api/categories/${catId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ showAllergenInfo: !current }) })
+      .catch(() => { toast.error("Failed to update"); fetchData(); });
+  }
+
+  async function toggleCategoryTaxInfo(catId: string, current: boolean) {
+    setMenuData((p) => p ? { ...p, categories: p.categories.map((c) => c.id === catId ? { ...c, showTaxInfo: !current } : c) } : p);
+    fetch(`/api/categories/${catId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ showTaxInfo: !current }) })
+      .catch(() => { toast.error("Failed to update"); fetchData(); });
+  }
+
+  async function toggleSubCart(catId: string, subId: string, current: boolean) {
+    setMenuData((p) => p ? { ...p, categories: p.categories.map((c) => c.id !== catId ? c : { ...c, subCategories: c.subCategories.map((s) => s.id === subId ? { ...s, showAddToCart: !current } : s) }) } : p);
+    fetch(`/api/subcategories/${subId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ showAddToCart: !current }) })
+      .catch(() => { toast.error("Failed to update"); fetchData(); });
+  }
+
+  async function toggleItemCart(catId: string, subId: string, itemId: string, current: boolean) {
+    setMenuData((p) => p ? { ...p, categories: p.categories.map((c) => c.id !== catId ? c : { ...c, subCategories: c.subCategories.map((s) => s.id !== subId ? s : { ...s, items: s.items.map((i) => i.id === itemId ? { ...i, showAddToCart: !current } : i) }) }) } : p);
+    fetch(`/api/items/${itemId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ showAddToCart: !current }) })
+      .catch(() => { toast.error("Failed to update"); fetchData(); });
+  }
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   if (loading) return <PageSkeleton />;
@@ -979,6 +1140,17 @@ export default function MenuBuilderPage() {
                 <label className="text-sm font-medium text-neutral-700">Phone button text</label>
                 <Input placeholder="e.g. Reserve a Table" value={menuForm.phoneButtonText} onChange={(e) => setMenuForm((f) => ({ ...f, phoneButtonText: e.target.value }))} />
               </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-neutral-700">Currency</label>
+                <select value={menuForm.currency} onChange={(e) => setMenuForm((f) => ({ ...f, currency: e.target.value }))} className="h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm">
+                  <option value="AED">AED — د.إ</option>
+                  <option value="USD">USD — $</option>
+                  <option value="EUR">EUR — €</option>
+                  <option value="GBP">GBP — £</option>
+                  <option value="CHF">CHF — Fr.</option>
+                  <option value="SAR">SAR — ﷼</option>
+                </select>
+              </div>
             </div>
             <div className="flex gap-2 pt-1">
               <Button type="submit" size="sm" disabled={menuSaving} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-800">{menuSaving ? "Saving…" : "Save Changes"}</Button>
@@ -997,7 +1169,7 @@ export default function MenuBuilderPage() {
               </div>
               {menuData.description && <p className="mt-1.5 text-sm text-neutral-500">{menuData.description}</p>}
               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-neutral-400">
-                <span>{menuData.venue.property.name} / {menuData.venue.name} · {menuData.categories.length} categories · {totalItems} items</span>
+                <span>{menuData.venue.property.name} / {menuData.venue.name} · {menuData.categories.length} categories · {totalItems} items · {menuData.currency}</span>
                 {menuData.slug && <span className="rounded bg-neutral-100 px-2 py-0.5 font-mono text-neutral-600">/{menuData.slug}</span>}
                 {menuData.phoneNumber && (
                   <span className="flex items-center gap-1">
@@ -1054,9 +1226,14 @@ export default function MenuBuilderPage() {
               </Button>
             )}
             {canAdd && (
-              <Button size="sm" onClick={() => setCategoryDialog({ open: true, editing: null })} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-700">
-                <Plus className="size-3.5" /> Add Category
-              </Button>
+              <>
+                <Button size="sm" variant="outline" onClick={() => setSuperCategoryDialog({ open: true, editing: null })} className="h-8 gap-1.5 px-3 text-[13px]">
+                  <Layers className="size-3.5" /> Add Super Section
+                </Button>
+                <Button size="sm" onClick={() => setCategoryDialog({ open: true, editing: null })} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-700">
+                  <Plus className="size-3.5" /> Add Category
+                </Button>
+              </>
             )}
           </div>
         )}
@@ -1065,6 +1242,128 @@ export default function MenuBuilderPage() {
       {/* ─── Tab: Structure ──────────────────────────────────────────────────── */}
       {activeTab === "structure" && (
         <div>
+
+          {/* ─── Super Categories panel ─────────────────────────────────── */}
+          {(menuData.superCategories.length > 0 || canAdd) && (
+            <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers className="size-4 text-neutral-500" />
+                  <span className="font-semibold text-neutral-900">Super Sections</span>
+                  <span className="text-xs text-neutral-400">{menuData.superCategories.length}</span>
+                </div>
+              </div>
+              {menuData.superCategories.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {menuData.superCategories.map((sc) => {
+                    const assignedCats = menuData.categories.filter((c) => c.superCategoryId === sc.id);
+                    return (
+                      <div key={sc.id} className="rounded-xl border border-neutral-100 bg-neutral-50 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-medium text-neutral-900">{sc.name}</span>
+                            <span className="ml-2 text-xs text-neutral-400">{assignedCats.length} categor{assignedCats.length !== 1 ? "ies" : "y"}</span>
+                          </div>
+                          {canEdit && (
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon-sm" onClick={() => setSuperCategoryDialog({ open: true, editing: sc })}><Pencil className="size-3.5" /></Button>
+                              {canDelete && <Button variant="ghost" size="icon-sm" onClick={() => deleteSuperCategory(sc.id, sc.name)} className="text-destructive hover:text-destructive"><Trash2 className="size-3.5" /></Button>}
+                            </div>
+                          )}
+                        </div>
+                        {assignedCats.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {assignedCats.map((c) => <span key={c.id} className="rounded-full bg-neutral-200 px-2.5 py-0.5 text-xs text-neutral-600">{c.name}</span>)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-neutral-400">No super sections yet. Super sections group related categories under one heading on the menu.</p>
+              )}
+            </div>
+          )}
+
+          {/* ─── Text Blocks panel ──────────────────────────────────────── */}
+          {canEdit && (
+            <div className="mb-4 rounded-2xl border border-neutral-200 bg-white p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Text className="size-4 text-neutral-500" />
+                  <span className="font-semibold text-neutral-900">Text Blocks</span>
+                  <span className="text-xs text-neutral-400">{menuData.textBlocks.length}</span>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setTextBlockDialog({ open: true, editing: null })} className="h-7 gap-1 px-2.5 text-xs">
+                  <Plus className="size-3" /> Add
+                </Button>
+              </div>
+              {menuData.textBlocks.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {menuData.textBlocks.map((tb) => (
+                    <div key={tb.id} className="flex items-start justify-between gap-3 rounded-xl border border-neutral-100 bg-neutral-50 px-4 py-3">
+                      <div className="min-w-0 flex-1 text-sm text-neutral-700 [&_ul]:ml-4 [&_ul]:list-disc [&_ol]:ml-4 [&_ol]:list-decimal" dangerouslySetInnerHTML={{ __html: tb.content }} />
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button variant="ghost" size="icon-sm" onClick={() => setTextBlockDialog({ open: true, editing: tb })}><Pencil className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon-sm" onClick={() => deleteTextBlock(tb.id)} className="text-destructive hover:text-destructive"><Trash2 className="size-3.5" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-neutral-400">Text blocks appear between menu sections on the frontend.</p>
+              )}
+            </div>
+          )}
+
+          {/* ─── Allergen & Tax Descriptions ────────────────────────────── */}
+          <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5">
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-neutral-700">Allergen Notice</span>
+                  {canEdit && !editingAllergenDesc && (
+                    <Button variant="ghost" size="sm" onClick={() => { setAllergenDescForm(menuData.allergenDescription ?? ""); setEditingAllergenDesc(true); }} className="h-7 gap-1 px-2 text-xs"><Pencil className="size-3" /> Edit</Button>
+                  )}
+                </div>
+                {editingAllergenDesc ? (
+                  <div className="flex flex-col gap-2">
+                    <RichTextEditor value={allergenDescForm} onChange={setAllergenDescForm} placeholder="e.g. Please inform your server of any allergies before ordering." />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={saveAllergenDesc} className="h-7 bg-neutral-900 text-white hover:bg-neutral-700">Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingAllergenDesc(false)} className="h-7">Cancel</Button>
+                    </div>
+                  </div>
+                ) : menuData.allergenDescription ? (
+                  <div className="text-sm text-neutral-600 [&_ul]:ml-4 [&_ul]:list-disc [&_ol]:ml-4 [&_ol]:list-decimal" dangerouslySetInnerHTML={{ __html: menuData.allergenDescription }} />
+                ) : (
+                  <p className="text-xs text-neutral-400">No allergen notice set.</p>
+                )}
+              </div>
+              <div className="border-t border-neutral-100 pt-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-neutral-700">Tax & Service Charge Notice</span>
+                  {canEdit && !editingTaxDesc && (
+                    <Button variant="ghost" size="sm" onClick={() => { setTaxDescForm(menuData.taxDescription ?? ""); setEditingTaxDesc(true); }} className="h-7 gap-1 px-2 text-xs"><Pencil className="size-3" /> Edit</Button>
+                  )}
+                </div>
+                {editingTaxDesc ? (
+                  <div className="flex flex-col gap-2">
+                    <RichTextEditor value={taxDescForm} onChange={setTaxDescForm} placeholder="e.g. All prices are inclusive of 5% VAT and 10% service charge." />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={saveTaxDesc} className="h-7 bg-neutral-900 text-white hover:bg-neutral-700">Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingTaxDesc(false)} className="h-7">Cancel</Button>
+                    </div>
+                  </div>
+                ) : menuData.taxDescription ? (
+                  <div className="text-sm text-neutral-600 [&_ul]:ml-4 [&_ul]:list-disc [&_ol]:ml-4 [&_ol]:list-decimal" dangerouslySetInnerHTML={{ __html: menuData.taxDescription }} />
+                ) : (
+                  <p className="text-xs text-neutral-400">No tax notice set.</p>
+                )}
+              </div>
+            </div>
+          </div>
 
           {menuData.categories.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 py-20">
@@ -1093,6 +1392,42 @@ export default function MenuBuilderPage() {
                       <div className="flex items-center gap-1">
                         {canEdit && (
                           <>
+                            {/* Super-category assignment */}
+                            {menuData.superCategories.length > 0 && (
+                              <select
+                                value={cat.superCategoryId ?? ""}
+                                onChange={(e) => assignCategoryToSuperCategory(cat.id, e.target.value || null)}
+                                title="Assign to super section"
+                                className="h-7 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-600"
+                              >
+                                <option value="">No super section</option>
+                                {menuData.superCategories.map((sc) => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
+                              </select>
+                            )}
+                            {/* Cart toggle */}
+                            <button
+                              onClick={() => toggleCategoryCart(cat.id, cat.showAddToCart)}
+                              title={cat.showAddToCart ? "Hide Add to Cart for this category" : "Show Add to Cart for this category"}
+                              className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium transition-colors ${cat.showAddToCart ? "text-emerald-600 hover:bg-emerald-50" : "text-neutral-400 hover:bg-neutral-200"}`}
+                            >
+                              <ShoppingCart className="size-3.5" />
+                            </button>
+                            {/* Allergen info toggle */}
+                            <button
+                              onClick={() => toggleCategoryAllergenInfo(cat.id, cat.showAllergenInfo)}
+                              title={cat.showAllergenInfo ? "Hide allergen notice for this category" : "Show allergen notice for this category"}
+                              className={`rounded-md px-1.5 py-1 text-xs font-medium transition-colors ${cat.showAllergenInfo ? "bg-amber-50 text-amber-600 hover:bg-amber-100" : "text-neutral-400 hover:bg-neutral-200"}`}
+                            >
+                              A
+                            </button>
+                            {/* Tax info toggle */}
+                            <button
+                              onClick={() => toggleCategoryTaxInfo(cat.id, cat.showTaxInfo)}
+                              title={cat.showTaxInfo ? "Hide tax notice for this category" : "Show tax notice for this category"}
+                              className={`rounded-md px-1.5 py-1 text-xs font-medium transition-colors ${cat.showTaxInfo ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "text-neutral-400 hover:bg-neutral-200"}`}
+                            >
+                              T
+                            </button>
                             <Button variant="ghost" size="icon-sm" onClick={() => moveCat(cat.id, "up")} disabled={catIdx === 0} className="text-neutral-400 disabled:opacity-30">
                               <ChevronUp className="size-3.5" />
                             </Button>
@@ -1144,6 +1479,13 @@ export default function MenuBuilderPage() {
                                           {sub.displayMode === "GRID" ? <LayoutGrid className="size-3.5" /> : <LayoutList className="size-3.5" />}
                                           <span className="hidden sm:inline">{sub.displayMode}</span>
                                         </button>
+                                        <button
+                                          onClick={() => toggleSubCart(cat.id, sub.id, sub.showAddToCart)}
+                                          title={sub.showAddToCart ? "Hide Add to Cart for this section" : "Show Add to Cart for this section"}
+                                          className={`flex items-center rounded-md px-1.5 py-1 text-xs transition-colors ${sub.showAddToCart ? "text-emerald-600 hover:bg-emerald-50" : "text-neutral-400 hover:bg-neutral-200"}`}
+                                        >
+                                          <ShoppingCart className="size-3.5" />
+                                        </button>
                                         <Button variant="ghost" size="icon-sm" onClick={() => moveSub(cat.id, sub.id, "up")} disabled={subIdx === 0} className="text-neutral-400 disabled:opacity-30">
                                           <ChevronUp className="size-3.5" />
                                         </Button>
@@ -1191,6 +1533,13 @@ export default function MenuBuilderPage() {
                                           <div className="flex shrink-0 items-center gap-1 pl-3">
                                             {canEdit && (
                                               <>
+                                                <button
+                                                  onClick={() => toggleItemCart(cat.id, sub.id, item.id, item.showAddToCart)}
+                                                  title={item.showAddToCart ? "Hide Add to Cart" : "Show Add to Cart"}
+                                                  className={`rounded-md p-1 transition-colors ${item.showAddToCart ? "text-emerald-600 hover:bg-emerald-50" : "text-neutral-300 hover:bg-neutral-100"}`}
+                                                >
+                                                  <ShoppingCart className="size-3.5" />
+                                                </button>
                                                 <Button variant="ghost" size="icon-sm" onClick={() => moveItem(cat.id, sub.id, item.id, "up")} disabled={itemIdx === 0} className="text-neutral-400 disabled:opacity-30">
                                                   <ChevronUp className="size-3.5" />
                                                 </Button>
@@ -1445,6 +1794,23 @@ export default function MenuBuilderPage() {
       )}
 
       {/* ─── Dialogs ─────────────────────────────────────────────────────────── */}
+      <SimpleDialog
+        open={superCategoryDialog.open}
+        onOpenChange={(v) => setSuperCategoryDialog((s) => ({ ...s, open: v }))}
+        title={superCategoryDialog.editing ? "Edit Super Section" : "Add Super Section"}
+        initial={superCategoryDialog.editing ? { name: superCategoryDialog.editing.name, description: superCategoryDialog.editing.description ?? "" } : null}
+        onSave={superCategoryDialog.editing ? updateSuperCategory : createSuperCategory}
+      />
+      <TextBlockDialog
+        open={textBlockDialog.open}
+        onOpenChange={(v) => setTextBlockDialog((s) => ({ ...s, open: v }))}
+        initial={textBlockDialog.editing}
+        onSave={async (content) => {
+          if (textBlockDialog.editing) { await updateTextBlock(textBlockDialog.editing.id, content); }
+          else { await createTextBlock(content); }
+          setTextBlockDialog((s) => ({ ...s, open: false }));
+        }}
+      />
       <SimpleDialog
         open={categoryDialog.open}
         onOpenChange={(v) => setCategoryDialog((s) => ({ ...s, open: v }))}

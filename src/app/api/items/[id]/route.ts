@@ -15,6 +15,7 @@ const updateSchema = z.object({
   basePrice: z.number().min(0).optional(),
   image: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
+  showAddToCart: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   allergenIds: z.array(z.string()).optional(),
   variants: z.array(variantSchema).optional(),
@@ -80,7 +81,7 @@ export async function PUT(
     const before = await prisma.item.findUnique({
       where: { id },
       select: {
-        name: true, description: true, basePrice: true, image: true, isActive: true, sortOrder: true,
+        name: true, description: true, basePrice: true, image: true, isActive: true, sortOrder: true, showAddToCart: true,
         itemAllergens: { select: { allergen: { select: { id: true, name: true } } } },
       },
     });

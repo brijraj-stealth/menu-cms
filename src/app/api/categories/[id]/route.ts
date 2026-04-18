@@ -7,6 +7,10 @@ const updateSchema = z.object({
   description: z.string().optional(),
   sortOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),
+  showAddToCart: z.boolean().optional(),
+  showAllergenInfo: z.boolean().optional(),
+  showTaxInfo: z.boolean().optional(),
+  superCategoryId: z.string().nullable().optional(),
 });
 
 function isAdmin(role: string) {
@@ -52,12 +56,12 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
 
-    const before = await prisma.category.findUnique({ where: { id }, select: { name: true, description: true, sortOrder: true, isActive: true } });
+    const before = await prisma.category.findUnique({ where: { id }, select: { name: true, description: true, sortOrder: true, isActive: true, showAddToCart: true, showAllergenInfo: true, showTaxInfo: true, superCategoryId: true } });
 
     const category = await prisma.category.update({ where: { id }, data: parsed.data });
 
     if (before) {
-      const tracked = ["name", "description", "sortOrder", "isActive"] as const;
+      const tracked = ["name", "description", "sortOrder", "isActive", "showAddToCart", "showAllergenInfo", "showTaxInfo", "superCategoryId"] as const;
       const changes = tracked
         .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
         .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));

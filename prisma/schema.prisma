@@ -140,16 +140,21 @@ model Menu {
   featuredSectionSubheader String?
   scheduleText             String?
   image                    String?
+  currency                 String   @default("AED")
+  allergenDescription      String?  @db.Text
+  taxDescription           String?  @db.Text
   isActive                 Boolean  @default(true)
   venueId                  String
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
-  venue          Venue               @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  categories     Category[]
-  userAccess     UserMenuAccess[]
-  videos         MenuVideo[]
-  featuredImages MenuFeaturedImage[]
+  venue           Venue               @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  categories      Category[]
+  superCategories SuperCategory[]
+  textBlocks      TextBlock[]
+  userAccess      UserMenuAccess[]
+  videos          MenuVideo[]
+  featuredImages  MenuFeaturedImage[]
 }
 
 model MenuVideo {
@@ -176,7 +181,7 @@ model MenuFeaturedImage {
   menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
 }
 
-model Category {
+model SuperCategory {
   id          String   @id @default(cuid())
   name        String
   description String?
@@ -186,20 +191,51 @@ model Category {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  menu          Menu          @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  menu       Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  categories Category[]
+}
+
+model TextBlock {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  sortOrder Int      @default(0)
+  menuId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  sortOrder         Int      @default(0)
+  isActive          Boolean  @default(true)
+  showAddToCart     Boolean  @default(true)
+  showAllergenInfo  Boolean  @default(false)
+  showTaxInfo       Boolean  @default(false)
+  menuId            String
+  superCategoryId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  menu          Menu           @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  superCategory SuperCategory? @relation(fields: [superCategoryId], references: [id], onDelete: SetNull)
   subCategories SubCategory[]
 }
 
 model SubCategory {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  sortOrder   Int      @default(0)
-  displayMode String   @default("LIST")
-  isActive    Boolean  @default(true)
-  categoryId  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  sortOrder     Int      @default(0)
+  displayMode   String   @default("LIST")
+  isActive      Boolean  @default(true)
+  showAddToCart Boolean  @default(true)
+  categoryId    String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   items    Item[]
@@ -208,11 +244,12 @@ model SubCategory {
 model Item {
   id            String   @id @default(cuid())
   name          String
-  description   String?
+  description   String?  @db.Text
   basePrice     Decimal  @db.Decimal(10, 2)
   image         String?
   sortOrder     Int      @default(0)
   isActive      Boolean  @default(true)
+  showAddToCart Boolean  @default(true)
   subCategoryId String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

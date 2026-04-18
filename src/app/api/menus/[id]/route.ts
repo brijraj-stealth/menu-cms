@@ -15,6 +15,9 @@ const updateSchema = z.object({
   featuredSectionHeader: z.string().optional().nullable(),
   featuredSectionSubheader: z.string().optional().nullable(),
   scheduleText: z.string().optional().nullable(),
+  currency: z.string().min(1).optional(),
+  allergenDescription: z.string().optional().nullable(),
+  taxDescription: z.string().optional().nullable(),
 });
 
 function isAdmin(role: string) {
@@ -61,9 +64,12 @@ export async function GET(
         },
         videos: { orderBy: { sortOrder: "asc" } },
         featuredImages: { orderBy: { sortOrder: "asc" } },
+        superCategories: { orderBy: { sortOrder: "asc" } },
+        textBlocks: { orderBy: { sortOrder: "asc" } },
         categories: {
           orderBy: { sortOrder: "asc" },
           include: {
+            superCategory: { select: { id: true, name: true } },
             subCategories: {
               orderBy: { sortOrder: "asc" },
               include: {
@@ -120,12 +126,12 @@ export async function PUT(
       return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
 
-    const before = await prisma.menu.findUnique({ where: { id }, select: { name: true, description: true, isActive: true, image: true, slug: true, phoneNumber: true, phoneButtonText: true, videoSectionHeader: true, videoSectionSubheader: true, featuredSectionHeader: true, featuredSectionSubheader: true, scheduleText: true } });
+    const before = await prisma.menu.findUnique({ where: { id }, select: { name: true, description: true, isActive: true, image: true, slug: true, phoneNumber: true, phoneButtonText: true, videoSectionHeader: true, videoSectionSubheader: true, featuredSectionHeader: true, featuredSectionSubheader: true, scheduleText: true, currency: true, allergenDescription: true, taxDescription: true } });
 
     const menu = await prisma.menu.update({ where: { id }, data: parsed.data });
 
     if (before) {
-      const tracked = ["name", "description", "isActive", "image", "slug", "phoneNumber", "phoneButtonText", "videoSectionHeader", "videoSectionSubheader", "featuredSectionHeader", "featuredSectionSubheader", "scheduleText"] as const;
+      const tracked = ["name", "description", "isActive", "image", "slug", "phoneNumber", "phoneButtonText", "videoSectionHeader", "videoSectionSubheader", "featuredSectionHeader", "featuredSectionSubheader", "scheduleText", "currency", "allergenDescription", "taxDescription"] as const;
       const changes = tracked
         .filter((f) => before[f] !== (parsed.data as Record<string, unknown>)[f] && (parsed.data as Record<string, unknown>)[f] !== undefined)
         .map((f) => ({ field: f, old: before[f] ?? null, new: (parsed.data as Record<string, unknown>)[f] ?? null }));
