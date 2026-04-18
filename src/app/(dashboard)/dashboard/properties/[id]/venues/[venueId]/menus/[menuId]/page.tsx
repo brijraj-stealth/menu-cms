@@ -783,11 +783,21 @@ export default function MenuBuilderPage() {
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
+    const { type, id: targetId, name } = deleteTarget;
     try {
-      const url = deleteTarget.type === "category" ? `/api/categories/${deleteTarget.id}` : deleteTarget.type === "subcategory" ? `/api/subcategories/${deleteTarget.id}` : `/api/items/${deleteTarget.id}`;
+      const url = type === "category" ? `/api/categories/${targetId}` : type === "subcategory" ? `/api/subcategories/${targetId}` : `/api/items/${targetId}`;
       const res = await fetch(url, { method: "DELETE" });
-      if (res.ok) { await fetchData(); toast.success(`"${deleteTarget.name}" deleted`); }
-      else toast.error(`Failed to delete ${deleteTarget.type}`);
+      if (res.ok) {
+        setMenuData((prev) => {
+          if (!prev) return prev;
+          if (type === "category") return { ...prev, categories: prev.categories.filter((c) => c.id !== targetId) };
+          if (type === "subcategory") return { ...prev, categories: prev.categories.map((c) => ({ ...c, subCategories: c.subCategories.filter((s) => s.id !== targetId) })) };
+          return { ...prev, categories: prev.categories.map((c) => ({ ...c, subCategories: c.subCategories.map((s) => ({ ...s, items: s.items.filter((i) => i.id !== targetId) })) })) };
+        });
+        toast.success(`"${name}" deleted`);
+      } else {
+        toast.error(`Failed to delete ${type}`);
+      }
     } finally { setDeleting(false); setDeleteTarget(null); }
   }
 
@@ -924,7 +934,7 @@ export default function MenuBuilderPage() {
         {canEdit && (
           <div
             onClick={() => !uploadingMenuImage && menuImageInputRef.current?.click()}
-            className={`group relative flex cursor-pointer items-center justify-center overflow-hidden transition-colors ${menuData.image ? "h-40" : "h-16 border-b border-dashed border-neutral-200 bg-neutral-50 hover:bg-neutral-100"}`}
+            className={`group relative flex cursor-pointer items-center justify-center overflow-hidden transition-colors ${menuData.image ? "h-40" : "h-10 border-b border-dashed border-neutral-200 bg-neutral-50 hover:bg-neutral-100"}`}
           >
             {menuData.image ? (
               <>
@@ -1020,43 +1030,41 @@ export default function MenuBuilderPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-6 flex gap-0 border-b border-neutral-200">
-        {(["structure", "videos", "featured"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-400 hover:text-neutral-700"}`}
-          >
-            {tab === "structure" && <LayoutList className="size-3.5" />}
-            {tab === "videos" && <Video className="size-3.5" />}
-            {tab === "featured" && <ImageIcon className="size-3.5" />}
-            {tab === "structure" ? "Menu Structure" : tab === "videos" ? "Videos" : "Featured Posters"}
-          </button>
-        ))}
+      {/* Tabs + actions */}
+      <div className="mb-6 flex items-center justify-between border-b border-neutral-200">
+        <div className="flex gap-0">
+          {(["structure", "videos", "featured"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-400 hover:text-neutral-700"}`}
+            >
+              {tab === "structure" && <LayoutList className="size-3.5" />}
+              {tab === "videos" && <Video className="size-3.5" />}
+              {tab === "featured" && <ImageIcon className="size-3.5" />}
+              {tab === "structure" ? `Menu Structure${menuData.categories.length > 0 ? ` (${menuData.categories.length})` : ""}` : tab === "videos" ? "Videos" : "Featured Posters"}
+            </button>
+          ))}
+        </div>
+        {activeTab === "structure" && (
+          <div className="flex gap-2 pb-1">
+            {admin && (
+              <Button variant="outline" size="sm" onClick={() => setCopyItemsOpen(true)} className="h-8 gap-1.5 px-3 text-[13px]">
+                <Copy className="size-3.5" /> Copy Items
+              </Button>
+            )}
+            {canAdd && (
+              <Button size="sm" onClick={() => setCategoryDialog({ open: true, editing: null })} className="h-8 gap-1.5 bg-neutral-900 px-3.5 text-[13px] text-white hover:bg-neutral-700">
+                <Plus className="size-3.5" /> Add Category
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ─── Tab: Structure ──────────────────────────────────────────────────── */}
       {activeTab === "structure" && (
         <div>
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-neutral-900">
-              Menu Structure
-              <span className="ml-2 text-sm font-normal text-neutral-400">({menuData.categories.length} categories)</span>
-            </h2>
-            <div className="flex gap-2">
-              {admin && (
-                <Button variant="outline" size="sm" onClick={() => setCopyItemsOpen(true)}>
-                  <Copy className="size-3.5" /> Copy Items
-                </Button>
-              )}
-              {canAdd && (
-                <Button size="sm" onClick={() => setCategoryDialog({ open: true, editing: null })} className="h-9 gap-1.5 bg-neutral-900 px-4 text-white hover:bg-neutral-700">
-                  <Plus className="size-4" /> Add Category
-                </Button>
-              )}
-            </div>
-          </div>
 
           {menuData.categories.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 py-20">
